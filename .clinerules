@@ -1,0 +1,23 @@
+# Agent Coding Standards & Safety Rules
+
+## 1. Core Stack & Framework
+- Framework: Next.js 14+ (App Router เท่านั้น ห้ามใช้ Pages Router `/pages`)
+- Language: TypeScript (Strict mode - ห้ามใช้ `any` ให้ประกาศ Interface/Type เสมอ)
+- Styling: Tailwind CSS (Mobile-First approach)
+- Database & Auth: Supabase (ใช้ `@supabase/ssr` สำหรับ Next.js App Router)
+- UI Icons: Lucide React (`lucide-react`)
+
+## 2. Code Execution & Safety Rules
+- **Environment Variables:** ห้าม hardcode API Keys, Password หรือ Credentials ในไฟล์โค้ดเด็ดขาด ให้ใช้ `process.env.NEXT_PUBLIC_...` หรือ `process.env.SUPABASE_...` ผ่านไฟล์ `.env.local` เท่านั้น
+- **File Safety:** ห้ามลบไฟล์ที่มีอยู่แล้วโดยไม่ได้รับอนุญาตชัดเจน หากต้องการแก้ไข ให้ใช้การ refactor หรือเพิ่มโค้ดเฉพาะจุด
+- **Terminal Execution:** ก่อนสั่งรันคำสั่งใน Terminal ที่มีความเสี่ยงสูง (เช่น `git reset`, `rm -rf`, `supabase db reset`) ต้องอธิบายผลกระทบให้ผู้ใช้ทราบก่อนเสมอ
+
+## 3. Architecture & Performance Standards
+- **Server Component First:** ใช้ React Server Components (RSC) เป็นค่าเริ่มต้นเสมอ ใส่ `'use client'` เฉพาะ Component ที่มีความจำเป็นต้องใช้ React State (`useState`), Effects (`useEffect`) หรือ Browser Events
+- **Database Security:** ตารางทุกตารางใน Supabase ต้องเปิดใช้งาน Row Level Security (RLS) เสมอ
+- **Error Handling:** API Routes ทุกตัวต้องมี `try-catch` block และส่ง HTTP Status Code ที่ถูกต้อง (เช่น 200, 400, 401, 500) พร้อม JSON Error Message
+- **Mobile First Design:** เขียน Class Tailwind CSS โดยเริ่มจาก Mobile Layout ก่อนเสมอ แล้วค่อยใช้ Breakpoint (`sm:`, `md:`, `lg:`) สำหรับหน้าจอขนาดใหญ่
+
+## 4. Financial & AI Logic Rules
+- **Disclaimer Required:** ทุกหน้าจอหรือ API ที่มีการแสดงผลคำแนะนำจาก AI ต้องใส่ข้อความปฏิเสธความรับผิดชอบกำกับไว้เสมอ: *"ผลวิเคราะห์ประมวลผลโดย AI ไม่ใช่คำแนะนำทางการเงิน (Not Financial Advice)"*
+- **Caching AI Results:** ผลการวิเคราะห์จาก OpenAI / LLM ต้องทำการ Cache ไว้บน Supabase เพื่อลด Cost API และเพิ่ม Speed

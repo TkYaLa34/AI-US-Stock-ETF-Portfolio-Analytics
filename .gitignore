@@ -34,3 +34,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# cline / MCP local settings (contains real access tokens - never commit)
+cline_mcp_settings.json
