@@ -49,7 +49,7 @@ import type {
   AssetListItem,
   PortfolioListItem,
   TransactionListItem,
-} from '@/lib/portfolio/queries';
+} from '@/lib/portfolio/types';
 
 import { ActivityFeed } from './activity-feed';
 import { AllocationList } from './allocation-list';

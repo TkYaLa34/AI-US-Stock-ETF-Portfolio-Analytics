@@ -34,14 +34,15 @@ import { SelectField, type SelectOption } from '@/components/ui/select-field';
 import { SubmitButton } from '@/components/ui/submit-button';
 import { TextareaField } from '@/components/ui/textarea-field';
 import { formatQuantity, todayAsDateInputValue } from '@/lib/portfolio/format';
-import type { AssetListItem, PortfolioListItem } from '@/lib/portfolio/queries';
 import {
   CASH_TYPES,
   CASH_TYPE_LABELS,
   NOTES_MAX_LENGTH,
   TRADE_TYPES,
   TRADE_TYPE_LABELS,
+  type AssetListItem,
   type CashType,
+  type PortfolioListItem,
   type TradeType,
 } from '@/lib/portfolio/types';
 

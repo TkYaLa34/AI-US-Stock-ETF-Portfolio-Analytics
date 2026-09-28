@@ -8,6 +8,13 @@
  *
  * Reads return `{ data, error }` rather than throwing, so the page can render a
  * partial dashboard with an inline error instead of a 500.
+ *
+ * THE READ MODELS ARE NOT DEFINED HERE. Because this module builds a Supabase
+ * client it transitively imports `cookies` from next/headers, so a Client
+ * Component that imports anything from it fails the build. PortfolioListItem,
+ * AssetListItem, TransactionListItem and isCashTransaction are therefore declared
+ * in ./types.ts and re-exported below, which keeps this file the single place
+ * that knows about the database while leaving the browser bundle clean.
  */
 
 import type { PostgrestError } from '@supabase/supabase-js';
@@ -16,49 +23,42 @@ import { createClient } from '@/lib/supabase/server';
 import type { AssetsRow } from '@/types/database.types';
 
 import { buildPositionViews, type PositionView } from './analytics';
+import type {
+  AssetListItem,
+  PortfolioListItem,
+  TransactionListItem,
+} from './types';
 
-/** PortfoliosRow narrowed to the columns the dashboard actually reads. */
-export interface PortfolioListItem {
-  id: string;
-  name: string;
-  description: string | null;
-  base_currency: string;
-  cash_balance: number;
-  is_default: boolean;
-  created_at: string;
-}
-
-export type AssetListItem = AssetsRow;
-
-/** A ledger row joined to the instrument it moved, for the activity feed. */
-export interface TransactionListItem {
-  id: string;
-  transaction_type: string;
-  quantity: number | null;
-  price: number | null;
-  total_amount: number;
-  fees: number;
-  trade_date: string;
-  notes: string | null;
-  assetSymbol: string | null;
-  assetName: string | null;
-}
+export type {
+  AssetListItem,
+  PortfolioListItem,
+  TransactionListItem,
+} from './types';
+export { isCashTransaction } from './types';
 
 export interface QueryResult<T> {
   data: T;
   error: PostgrestError | null;
 }
 
+/*
+ * THESE MUST STAY SINGLE STRING LITERALS - DO NOT SPLIT THEM WITH `+`.
+ *
+ * postgrest-js resolves the row type of `.select()` at the type level, by parsing
+ * the literal text of the argument (GetResult, in select-query-parser/result). A
+ * const assembled by string concatenation widens to `string`, the parser cannot
+ * read that, and the query silently degrades to GenericStringError - so `data`
+ * stops being `AssetsRow[]` and the build fails on an assignment that looks fine.
+ * The long single lines below are load bearing, not sloppy formatting.
+ */
 const PORTFOLIO_COLUMNS =
   'id, name, description, base_currency, cash_balance, is_default, created_at';
 
 const ASSET_COLUMNS =
-  'id, portfolio_id, user_id, symbol, name, asset_type, exchange, sector, ' +
-  'currency, quantity, average_cost, current_price, notes, created_at, updated_at';
+  'id, portfolio_id, user_id, symbol, name, asset_type, exchange, sector, currency, quantity, average_cost, current_price, notes, created_at, updated_at';
 
 const TRANSACTION_COLUMNS =
-  'id, transaction_type, quantity, price, total_amount, fees, trade_date, ' +
-  'notes, assets (symbol, name)';
+  'id, transaction_type, quantity, price, total_amount, fees, trade_date, notes, assets (symbol, name)';
 
 /**
  * All of the user's portfolios, default first so the dashboard always has a
@@ -237,16 +237,6 @@ export function toPositionViews(assets: readonly AssetListItem[]): PositionView[
   return buildPositionViews(assets);
 }
 
-/** True when a ledger row is a cash movement rather than a trade. */
-export function isCashTransaction(
-  transaction: Pick<TransactionListItem, 'transaction_type'>,
-): boolean {
-  return (
-    transaction.transaction_type === 'DEPOSIT' ||
-    transaction.transaction_type === 'WITHDRAWAL'
-  );
-}
-
 /**
  * Wraps a thrown error (a missing env var, a dead socket) in the shape the page
  * already knows how to render.
@@ -257,17 +247,18 @@ function toFallbackError(error: unknown): PostgrestError {
       ? error.message
       : 'เกิดข้อผิดพลาดในการเชื่อมต่อฐานข้อมูล';
 
-  // PostgrestError in supabase-js 2.117 also carries `name` and `toJSON` from
-  // the Error shape it extends; both are required by the type.
+  /*
+   * Only the four own properties are required. `name` and `message` are already
+   * satisfied structurally because PostgrestError extends Error, and there is no
+   * `toJSON` on it in supabase-js 2.47 / postgrest-js 1.17 - adding one is an
+   * excess property error, not a compatible extension.
+   */
   return {
     code: 'CONNECTION_ERROR',
     details: '',
     hint: '',
     message,
     name: 'ConnectionError',
-    toJSON() {
-      return { code: this.code, details: this.details, hint: this.hint, message: this.message };
-    },
   };
 }
 

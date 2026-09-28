@@ -18,10 +18,11 @@ import { formatDateOnly, formatMoney, formatQuantity } from '@/lib/portfolio/for
 import {
   CASH_TYPE_LABELS,
   TRADE_TYPE_LABELS,
+  isCashTransaction,
   type CashType,
   type TradeType,
+  type TransactionListItem,
 } from '@/lib/portfolio/types';
-import { isCashTransaction, type TransactionListItem } from '@/lib/portfolio/queries';
 
 export interface ActivityFeedProps {
   transactions: readonly TransactionListItem[];

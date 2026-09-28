@@ -23,7 +23,7 @@ import {
 } from '@/lib/portfolio/types';
 
 import { useModalAction } from './use-modal-action';
-import type { PortfolioListItem } from '@/lib/portfolio/queries';
+import type { PortfolioListItem } from '@/lib/portfolio/types';
 
 export interface PortfolioFormModalProps {
   /** Present when editing, absent when creating. */

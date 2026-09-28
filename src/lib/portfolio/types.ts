@@ -1,16 +1,27 @@
 /**
- * Shared shapes for the portfolio / asset / transaction server actions.
+ * Shared shapes for the portfolio / asset / transaction server actions, plus the
+ * read models the dashboard passes from the server down to the client.
  *
  * This file deliberately has NO 'use server' directive, for the same reason as
  * src/lib/auth/types.ts: Next.js only allows a file to export async functions
  * when it does, and the INITIAL_* constants below are imported by Client
  * Components.
  *
+ * IT IS ALSO THE CLIENT-SAFE HALF OF THE PORTFOLIO LAYER, and that is the reason
+ * the read models live here rather than in queries.ts. queries.ts builds a
+ * request-scoped Supabase client, which needs `cookies()` from next/headers;
+ * a Client Component that reaches that module fails the build with
+ * "You're importing a component that needs next/headers". Anything a Client
+ * Component needs at RENDER time therefore has to be declared here, next to the
+ * pure helpers - see the read models section at the bottom of this file.
+ *
  * The values here are exactly the CHECK constraints in
  * 20260925000100_create_core_schema.sql. Keep the two in step: validation
  * exists to give a helpful message early, the constraint is what actually
  * holds the data honest.
  */
+
+import type { AssetsRow } from '@/types/database.types';
 
 /** Mirrors assets_type_allowed. */
 export const ASSET_TYPES = [
@@ -139,4 +150,63 @@ export function successState(message: string): PortfolioActionState {
 
 export function failureState(message: string): PortfolioActionState {
   return { status: 'error', message, fieldErrors: {} };
+}
+
+// -----------------------------------------------------------------------------
+// Read models
+// -----------------------------------------------------------------------------
+
+/*
+ * The shapes the dashboard reads out of Postgres and hands to the Client
+ * Components.
+ *
+ * They are plain, serialisable data with no Supabase client behind them, which
+ * is what makes them safe to cross the server/client boundary: the server page
+ * (src/app/dashboard/page.tsx) fetches and reduces the rows, and
+ * DashboardShell receives finished props.
+ */
+
+/** PortfoliosRow narrowed to the columns the dashboard actually reads. */
+export interface PortfolioListItem {
+  id: string;
+  name: string;
+  description: string | null;
+  base_currency: string;
+  cash_balance: number;
+  is_default: boolean;
+  created_at: string;
+}
+
+/** The assets row as the forms and the positions table consume it. */
+export type AssetListItem = AssetsRow;
+
+/** A ledger row joined to the instrument it moved, for the activity feed. */
+export interface TransactionListItem {
+  id: string;
+  transaction_type: string;
+  quantity: number | null;
+  price: number | null;
+  total_amount: number;
+  fees: number;
+  trade_date: string;
+  notes: string | null;
+  assetSymbol: string | null;
+  assetName: string | null;
+}
+
+/**
+ * True when a ledger row is a cash movement rather than a trade.
+ *
+ * Pure and dependency free, so the activity feed can branch on it in the browser
+ * without the row ever going back to the database. The two literals are the
+ * cash-only members of the transactions_type_allowed CHECK constraint; the
+ * activity feed relies on this to avoid labelling a DEPOSIT as a "ซื้อ".
+ */
+export function isCashTransaction(
+  transaction: Pick<TransactionListItem, 'transaction_type'>,
+): boolean {
+  return (
+    transaction.transaction_type === 'DEPOSIT' ||
+    transaction.transaction_type === 'WITHDRAWAL'
+  );
 }

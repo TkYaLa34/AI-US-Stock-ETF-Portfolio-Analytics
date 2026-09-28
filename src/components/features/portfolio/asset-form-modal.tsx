@@ -28,7 +28,7 @@ import {
 } from '@/lib/portfolio/types';
 
 import { useModalAction } from './use-modal-action';
-import type { AssetListItem, PortfolioListItem } from '@/lib/portfolio/queries';
+import type { AssetListItem, PortfolioListItem } from '@/lib/portfolio/types';
 
 export interface AssetFormModalProps {
   portfolios: readonly PortfolioListItem[];
