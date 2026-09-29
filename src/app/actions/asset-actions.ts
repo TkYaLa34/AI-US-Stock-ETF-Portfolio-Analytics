@@ -20,6 +20,12 @@ import { revalidatePath } from 'next/cache';
 import { requireUser } from '@/lib/auth/require-user';
 import { DASHBOARD_PATH } from '@/lib/portfolio/constants';
 import {
+  logSupabaseError,
+  logThrownError,
+  toErrorDetail,
+  toThrownErrorDetail,
+} from '@/lib/portfolio/diagnostics';
+import {
   GENERIC_WRITE_ERROR_MESSAGE,
   isUniqueViolation,
   toWriteErrorMessage,
@@ -43,12 +49,14 @@ function duplicateSymbolState(error: PostgrestError): PortfolioActionState {
     isUniqueViolation(error) &&
     uniqueViolationColumns(error).includes('symbol')
   ) {
-    return invalidState({
-      symbol: 'มีหลักทรัพย์รหัสนี้อยู่ในพอร์ตโฟลิโอนี้แล้ว',
-    });
+    return invalidState(
+      { symbol: 'มีหลักทรัพย์รหัสนี้อยู่ในพอร์ตโฟลิโอนี้แล้ว' },
+      'กรุณาตรวจสอบข้อมูลที่กรอก',
+      toErrorDetail(error),
+    );
   }
 
-  return failureState(toWriteErrorMessage(error));
+  return failureState(toWriteErrorMessage(error), toErrorDetail(error));
 }
 
 export async function createAssetAction(
@@ -88,10 +96,21 @@ export async function createAssetAction(
     });
 
     if (error) {
+      logSupabaseError('createAssetAction: insert assets', error, {
+        symbol: values.symbol,
+        portfolioId: values.portfolioId,
+      });
       return duplicateSymbolState(error);
     }
-  } catch {
-    return failureState(GENERIC_WRITE_ERROR_MESSAGE);
+  } catch (caught) {
+    logThrownError('createAssetAction: insert assets', caught, {
+      symbol: values.symbol,
+      portfolioId: values.portfolioId,
+    });
+    return failureState(
+      GENERIC_WRITE_ERROR_MESSAGE,
+      toThrownErrorDetail(caught),
+    );
   }
 
   revalidatePath(DASHBOARD_PATH);
@@ -138,15 +157,32 @@ export async function updateAssetAction(
       .select('id');
 
     if (error) {
+      logSupabaseError('updateAssetAction: update assets', error, { assetId });
       return duplicateSymbolState(error);
     }
 
     // RLS filtered the update: no rows means "not yours, or already deleted".
     if (!data || data.length === 0) {
+      logSupabaseError(
+        'updateAssetAction: assets row not visible to RLS',
+        {
+          code: 'PGRST_NO_ROWS',
+          message:
+            'The update matched zero rows, so the asset is not owned by this user or no longer exists.',
+          details: '',
+          hint: 'No RLS policy allowed the row.',
+        } as PostgrestError,
+        { assetId },
+      );
+
       return failureState('ไม่พบหลักทรัพย์ที่ต้องการแก้ไข');
     }
-  } catch {
-    return failureState(GENERIC_WRITE_ERROR_MESSAGE);
+  } catch (caught) {
+    logThrownError('updateAssetAction: update assets', caught, { assetId });
+    return failureState(
+      GENERIC_WRITE_ERROR_MESSAGE,
+      toThrownErrorDetail(caught),
+    );
   }
 
   revalidatePath(DASHBOARD_PATH);
@@ -184,16 +220,33 @@ export async function deleteAssetAction(
       .select('id, symbol');
 
     if (error) {
-      return failureState(toWriteErrorMessage(error));
+      logSupabaseError('deleteAssetAction: delete assets', error, { assetId });
+      return failureState(toWriteErrorMessage(error), toErrorDetail(error));
     }
 
     if (!data || data.length === 0) {
+      logSupabaseError(
+        'deleteAssetAction: assets row not visible to RLS',
+        {
+          code: 'PGRST_NO_ROWS',
+          message:
+            'The delete matched zero rows, so the asset is not owned by this user or no longer exists.',
+          details: '',
+          hint: 'No RLS policy allowed the row.',
+        } as PostgrestError,
+        { assetId },
+      );
+
       return failureState('ไม่พบหลักทรัพย์ที่ต้องการลบ');
     }
 
     symbol = data[0]?.symbol ?? '';
-  } catch {
-    return failureState(GENERIC_WRITE_ERROR_MESSAGE);
+  } catch (caught) {
+    logThrownError('deleteAssetAction: delete assets', caught, { assetId });
+    return failureState(
+      GENERIC_WRITE_ERROR_MESSAGE,
+      toThrownErrorDetail(caught),
+    );
   }
 
   revalidatePath(DASHBOARD_PATH);

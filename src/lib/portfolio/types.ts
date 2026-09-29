@@ -128,28 +128,51 @@ export interface PortfolioActionState {
   /** Human readable, already localised to Thai. */
   message: string | null;
   fieldErrors: PortfolioFieldErrors;
+  /**
+   * The raw Supabase error, already formatted for reading, or null when the
+   * message above is specific enough or the detail is gated off.
+   *
+   * This is what turns an unactionable "บันทึกข้อมูลไม่สำเร็จ" into the actual
+   * "42P01: relation \"portfolios\" does not exist", which is the whole point
+   * when a migration has not been run. It is produced on the server by
+   * toErrorDetail() in src/lib/portfolio/diagnostics.ts and rendered by <Alert>.
+   */
+  detail: string | null;
 }
 
 export const INITIAL_PORTFOLIO_ACTION_STATE: PortfolioActionState = {
   status: 'idle',
   message: null,
   fieldErrors: {},
+  detail: null,
 };
 
 /** Shorthand for "return this when the form is invalid". */
 export function invalidState(
   fieldErrors: PortfolioFieldErrors,
   message = 'กรุณาตรวจสอบข้อมูลที่กรอก',
+  detail: string | null = null,
 ): PortfolioActionState {
-  return { status: 'error', message, fieldErrors };
+  return { status: 'error', message, fieldErrors, detail };
 }
 
 export function successState(message: string): PortfolioActionState {
-  return { status: 'success', message, fieldErrors: {} };
+  return { status: 'success', message, fieldErrors: {}, detail: null };
 }
 
-export function failureState(message: string): PortfolioActionState {
-  return { status: 'error', message, fieldErrors: {} };
+/**
+ * A failure that is not tied to one field.
+ *
+ * `detail` is the raw database error. It is passed in rather than derived here
+ * because this module is client safe: turning a PostgrestError into text needs
+ * the env gate from src/lib/portfolio/diagnostics.ts, which only the server can
+ * read correctly.
+ */
+export function failureState(
+  message: string,
+  detail: string | null = null,
+): PortfolioActionState {
+  return { status: 'error', message, fieldErrors: {}, detail };
 }
 
 // -----------------------------------------------------------------------------

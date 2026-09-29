@@ -10,6 +10,7 @@ import {
   summarisePortfolio,
 } from '@/lib/portfolio/analytics';
 import { PORTFOLIO_QUERY_PARAM } from '@/lib/portfolio/constants';
+import { toErrorDetail } from '@/lib/portfolio/diagnostics';
 import { toReadErrorMessage } from '@/lib/portfolio/errors';
 import {
   listAssetsForPortfolios,
@@ -45,18 +46,31 @@ function firstParam(
 /**
  * Collapses the read errors into one banner.
  *
- * Raw Postgres messages are never shown: they leak table and column names, and
- * `toReadErrorMessage` exists to turn a SQLSTATE into something actionable.
- * The full error is still on the server console via the failed query itself.
+ * The friendly sentence is what the user reads; `toReadBannerDetail` adds the raw
+ * SQLSTATE underneath it, gated by the same SHOW_ERROR_DETAILS switch as the
+ * write path (see src/lib/portfolio/diagnostics.ts). A missing migration surfaces
+ * here as 42P01 on the dashboard rather than as a silently empty portfolio.
  */
+function firstReadError(
+  errors: readonly (PostgrestError | null)[],
+): PostgrestError | null {
+  return errors.find((error) => error !== null) ?? null;
+}
+
 function toReadBanner(
   errors: readonly (PostgrestError | null)[],
 ): string | null {
-  const first = errors.find((error) => error !== null) ?? null;
+  const first = firstReadError(errors);
 
   return first === null
     ? null
     : `โหลดข้อมูลบางส่วนไม่สำเร็จ: ${toReadErrorMessage(first)}`;
+}
+
+function toReadBannerDetail(
+  errors: readonly (PostgrestError | null)[],
+): string | null {
+  return toErrorDetail(firstReadError(errors));
 }
 
 /**
@@ -126,6 +140,16 @@ export default async function DashboardPage({
     ? summarisePortfolio(positions, selected.cash_balance, selected.base_currency)
     : null;
 
+  /*
+   * Collected once so the banner text and its raw detail below always describe
+   * the same error, in the same order.
+   */
+  const readErrors = [
+    portfoliosError,
+    assetsResult.error,
+    transactionsResult.error,
+  ] as const;
+
   return (
     <DashboardShell
       userLabel={user.email ?? user.id}
@@ -137,11 +161,8 @@ export default async function DashboardPage({
       allAssets={assetsResult.data}
       typeAllocation={allocationByAssetType(positions)}
       sectorAllocation={allocationBySector(positions)}
-      readError={toReadBanner([
-        portfoliosError,
-        assetsResult.error,
-        transactionsResult.error,
-      ])}
+      readError={toReadBanner(readErrors)}
+      readErrorDetail={toReadBannerDetail(readErrors)}
     />
   );
 }

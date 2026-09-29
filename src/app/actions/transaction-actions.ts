@@ -25,6 +25,12 @@ import { revalidatePath } from 'next/cache';
 
 import { requireUser } from '@/lib/auth/require-user';
 import { DASHBOARD_PATH } from '@/lib/portfolio/constants';
+import {
+  logSupabaseError,
+  logThrownError,
+  toErrorDetail,
+  toThrownErrorDetail,
+} from '@/lib/portfolio/diagnostics';
 import { GENERIC_WRITE_ERROR_MESSAGE, toWriteErrorMessage } from '@/lib/portfolio/errors';
 import {
   CASH_TYPE_LABELS,
@@ -64,21 +70,44 @@ export async function createTradeAction(
     });
 
     if (error) {
+      logSupabaseError('createTradeAction: rpc record_trade', error, {
+        portfolioId: values.portfolioId,
+        assetId: values.assetId,
+        transactionType: values.transactionType,
+      });
+
       /*
        * PT001 (not enough cash) and PT003 (selling more than held) are the two
        * failures a user can actually fix by changing the numbers, so they are
-       * attached to the field rather than shown as a page level banner.
+       * attached to the field rather than shown as a page level banner. The
+       * detail rides along in both branches, so the server console keeps the
+       * real SQLSTATE either way.
        */
       if (error.code === 'PT003') {
-        return invalidState({ quantity: toWriteErrorMessage(error) });
+        return invalidState(
+          { quantity: toWriteErrorMessage(error) },
+          'กรุณาตรวจสอบข้อมูลที่กรอก',
+          toErrorDetail(error),
+        );
       }
       if (error.code === 'PT001') {
-        return invalidState({ price: toWriteErrorMessage(error) });
+        return invalidState(
+          { price: toWriteErrorMessage(error) },
+          'กรุณาตรวจสอบข้อมูลที่กรอก',
+          toErrorDetail(error),
+        );
       }
-      return failureState(toWriteErrorMessage(error));
+      return failureState(toWriteErrorMessage(error), toErrorDetail(error));
     }
-  } catch {
-    return failureState(GENERIC_WRITE_ERROR_MESSAGE);
+  } catch (caught) {
+    logThrownError('createTradeAction: rpc record_trade', caught, {
+      portfolioId: values.portfolioId,
+      assetId: values.assetId,
+    });
+    return failureState(
+      GENERIC_WRITE_ERROR_MESSAGE,
+      toThrownErrorDetail(caught),
+    );
   }
 
   // Computed after the write succeeds, purely for the confirmation message.
@@ -114,14 +143,35 @@ export async function createCashMovementAction(
     });
 
     if (error) {
+      logSupabaseError(
+        'createCashMovementAction: rpc record_cash_movement',
+        error,
+        {
+          portfolioId: values.portfolioId,
+          transactionType: values.transactionType,
+        },
+      );
+
       // A withdrawal larger than the balance is fixable in the form.
       if (error.code === 'PT001') {
-        return invalidState({ amount: toWriteErrorMessage(error) });
+        return invalidState(
+          { amount: toWriteErrorMessage(error) },
+          'กรุณาตรวจสอบข้อมูลที่กรอก',
+          toErrorDetail(error),
+        );
       }
-      return failureState(toWriteErrorMessage(error));
+      return failureState(toWriteErrorMessage(error), toErrorDetail(error));
     }
-  } catch {
-    return failureState(GENERIC_WRITE_ERROR_MESSAGE);
+  } catch (caught) {
+    logThrownError(
+      'createCashMovementAction: rpc record_cash_movement',
+      caught,
+      { portfolioId: values.portfolioId },
+    );
+    return failureState(
+      GENERIC_WRITE_ERROR_MESSAGE,
+      toThrownErrorDetail(caught),
+    );
   }
 
   revalidatePath(DASHBOARD_PATH);

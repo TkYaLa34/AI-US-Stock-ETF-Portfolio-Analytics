@@ -31,6 +31,26 @@ const POSTGRES_ERROR_MESSAGES: Record<string, string> = {
   '22P02': 'รูปแบบข้อมูลไม่ถูกต้อง',
   // insufficient_privilege, raised by guard_transaction_immutability
   '42501': 'ไม่สามารถแก้ไขรายการนี้ได้',
+  /*
+   * SCHEMA DRIFT - the three that matter when a migration has not been run yet,
+   * which is by far the most common cause of a generic failure in development.
+   * The code alone does not say which table, so the friendly message points at
+   * the fix and the raw text stays in the detail / the server log.
+   */
+  // undefined_table
+  '42P01': 'ยังไม่มีตารางนี้ในฐานข้อมูล กรุณาตรวจสอบว่า migration ถูกรันครบแล้ว',
+  // undefined_column
+  '42703': 'คอลัมน์ที่ระบบเรียกใช้ยังไม่มีอยู่ กรุณาตรวจสอบว่า migration ถูกรันครบแล้ว',
+  // undefined_function, raised when an rpc() call has no matching signature
+  PGRST202:
+    'ยังไม่มีฟังก์ชันที่ระบบเรียกใช้ในฐานข้อมูล กรุณาตรวจสอบว่า migration ถูกรันครบแล้ว',
+  // PGRST205, the same thing under a different PostgREST version
+  PGRST205:
+    'ยังไม่มีฟังก์ชันที่ระบบเรียกใช้ในฐานข้อมูล กรุณาตรวจสอบว่า migration ถูกรันครบแล้ว',
+  // PGRST116, .single() / .maybeSingle() on zero rows
+  PGRST116: 'ไม่พบข้อมูลที่ระบุ หรือคุณไม่มีสิทธิ์เข้าถึง',
+  // query_canceled, e.g. statement_timeout
+  '57014': 'การทำรายการใช้เวลานานเกินกำหนด กรุณาลองใหม่อีกครั้ง',
 };
 
 export const GENERIC_WRITE_ERROR_MESSAGE =

@@ -48,6 +48,7 @@ export function ConfirmDialog({
           <Alert
             tone={state.status === 'success' ? 'success' : 'error'}
             message={state.message}
+            detail={state.detail}
           />
         ) : null}
 

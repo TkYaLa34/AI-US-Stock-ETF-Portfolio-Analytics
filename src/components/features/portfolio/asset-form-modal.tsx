@@ -90,6 +90,7 @@ export function AssetFormModal({
           <Alert
             tone={state.status === 'success' ? 'success' : 'error'}
             message={state.message}
+            detail={state.detail}
           />
         ) : null}
 

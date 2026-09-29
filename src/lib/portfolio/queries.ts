@@ -7,7 +7,10 @@
  * session, never from the caller.
  *
  * Reads return `{ data, error }` rather than throwing, so the page can render a
- * partial dashboard with an inline error instead of a 500.
+ * partial dashboard with an inline error instead of a 500. Every failure is
+ * logged here, in ./diagnostics, with the query that produced it - returning the
+ * error to the page is not the same as recording it, and a silent failed read is
+ * indistinguishable from an empty portfolio.
  *
  * THE READ MODELS ARE NOT DEFINED HERE. Because this module builds a Supabase
  * client it transitively imports `cookies` from next/headers, so a Client
@@ -23,6 +26,7 @@ import { createClient } from '@/lib/supabase/server';
 import type { AssetsRow } from '@/types/database.types';
 
 import { buildPositionViews, type PositionView } from './analytics';
+import { logSupabaseError, logThrownError } from './diagnostics';
 import type {
   AssetListItem,
   PortfolioListItem,
@@ -75,12 +79,16 @@ export async function listPortfolios(): Promise<QueryResult<PortfolioListItem[]>
       .order('is_default', { ascending: false })
       .order('created_at', { ascending: true });
 
-    return error
-      ? { data: [], error }
-      : { data: data ?? [], error: null };
-  } catch (error) {
+    if (error) {
+      logSupabaseError('listPortfolios: select portfolios', error);
+      return { data: [], error };
+    }
+
+    return { data: data ?? [], error: null };
+  } catch (caught) {
     // A missing env var or a dead socket throws rather than returning an error.
-    return { data: [], error: toFallbackError(error) };
+    logThrownError('listPortfolios: select portfolios', caught);
+    return { data: [], error: toFallbackError(caught) };
   }
 }
 
@@ -125,11 +133,17 @@ export async function listPortfolioAssets(
       .eq('portfolio_id', portfolioId)
       .order('symbol', { ascending: true });
 
-    return error
-      ? { data: [], error }
-      : { data: data ?? [], error: null };
-  } catch (error) {
-    return { data: [], error: toFallbackError(error) };
+    if (error) {
+      logSupabaseError('listPortfolioAssets: select assets', error, {
+        portfolioId,
+      });
+      return { data: [], error };
+    }
+
+    return { data: data ?? [], error: null };
+  } catch (caught) {
+    logThrownError('listPortfolioAssets: select assets', caught, { portfolioId });
+    return { data: [], error: toFallbackError(caught) };
   }
 }
 
@@ -158,11 +172,19 @@ export async function listAssetsForPortfolios(
       .in('portfolio_id', [...portfolioIds])
       .order('symbol', { ascending: true });
 
-    return error
-      ? { data: [], error }
-      : { data: data ?? [], error: null };
-  } catch (error) {
-    return { data: [], error: toFallbackError(error) };
+    if (error) {
+      logSupabaseError('listAssetsForPortfolios: select assets', error, {
+        portfolioCount: portfolioIds.length,
+      });
+      return { data: [], error };
+    }
+
+    return { data: data ?? [], error: null };
+  } catch (caught) {
+    logThrownError('listAssetsForPortfolios: select assets', caught, {
+      portfolioCount: portfolioIds.length,
+    });
+    return { data: [], error: toFallbackError(caught) };
   }
 }
 
@@ -182,12 +204,20 @@ export async function listRecentTransactions(
       .limit(limit);
 
     if (error) {
+      logSupabaseError('listRecentTransactions: select transactions', error, {
+        portfolioId,
+        limit,
+      });
       return { data: [], error };
     }
 
     return { data: (data ?? []).map(toTransactionListItem), error: null };
-  } catch (error) {
-    return { data: [], error: toFallbackError(error) };
+  } catch (caught) {
+    logThrownError('listRecentTransactions: select transactions', caught, {
+      portfolioId,
+      limit,
+    });
+    return { data: [], error: toFallbackError(caught) };
   }
 }
 

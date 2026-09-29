@@ -25,6 +25,12 @@ import { revalidatePath } from 'next/cache';
 import { requireUser } from '@/lib/auth/require-user';
 import { DASHBOARD_PATH } from '@/lib/portfolio/constants';
 import {
+  logSupabaseError,
+  logThrownError,
+  toErrorDetail,
+  toThrownErrorDetail,
+} from '@/lib/portfolio/diagnostics';
+import {
   GENERIC_WRITE_ERROR_MESSAGE,
   isUniqueViolation,
   toWriteErrorMessage,
@@ -43,16 +49,24 @@ import { createClient } from '@/lib/supabase/server';
  * portfolios_user_name_uidx is a unique index on (user_id, lower(name)), so a
  * duplicate surfaces as a 23505 naming the `name` column. Point the message at
  * the input instead of showing the raw Postgres detail.
+ *
+ * The detail rides along in both branches anyway: a field-level message tells
+ * the user what to fix, the detail tells whoever is debugging what the database
+ * actually said.
  */
 function portfolioNameTakenState(error: PostgrestError): PortfolioActionState {
   if (
     isUniqueViolation(error) &&
     uniqueViolationColumns(error).includes('name')
   ) {
-    return invalidState({ name: 'คุณมีพอร์ตโฟลิโอชื่อนี้อยู่แล้ว' });
+    return invalidState(
+      { name: 'คุณมีพอร์ตโฟลิโอชื่อนี้อยู่แล้ว' },
+      'กรุณาตรวจสอบข้อมูลที่กรอก',
+      toErrorDetail(error),
+    );
   }
 
-  return failureState(toWriteErrorMessage(error));
+  return failureState(toWriteErrorMessage(error), toErrorDetail(error));
 }
 
 export async function createPortfolioAction(
@@ -80,10 +94,19 @@ export async function createPortfolioAction(
     });
 
     if (error) {
+      logSupabaseError('createPortfolioAction: insert portfolios', error, {
+        portfolioName: values.name,
+      });
       return portfolioNameTakenState(error);
     }
-  } catch {
-    return failureState(GENERIC_WRITE_ERROR_MESSAGE);
+  } catch (caught) {
+    logThrownError('createPortfolioAction: insert portfolios', caught, {
+      portfolioName: values.name,
+    });
+    return failureState(
+      GENERIC_WRITE_ERROR_MESSAGE,
+      toThrownErrorDetail(caught),
+    );
   }
 
   revalidatePath(DASHBOARD_PATH);
@@ -121,15 +144,36 @@ export async function updatePortfolioAction(
       .select('id');
 
     if (error) {
+      logSupabaseError('updatePortfolioAction: update portfolios', error, {
+        portfolioId,
+      });
       return portfolioNameTakenState(error);
     }
 
     // RLS filtered the update, so zero rows means "not yours or gone".
     if (!data || data.length === 0) {
+      logSupabaseError(
+        'updatePortfolioAction: portfolios row not visible to RLS',
+        {
+          code: 'PGRST_NO_ROWS',
+          message:
+            'The update matched zero rows, so the portfolio is not owned by this user or no longer exists.',
+          details: '',
+          hint: 'No RLS policy allowed the row.',
+        } as PostgrestError,
+        { portfolioId },
+      );
+
       return failureState('ไม่พบพอร์ตโฟลิโอที่ต้องการแก้ไข');
     }
-  } catch {
-    return failureState(GENERIC_WRITE_ERROR_MESSAGE);
+  } catch (caught) {
+    logThrownError('updatePortfolioAction: update portfolios', caught, {
+      portfolioId,
+    });
+    return failureState(
+      GENERIC_WRITE_ERROR_MESSAGE,
+      toThrownErrorDetail(caught),
+    );
   }
 
   revalidatePath(DASHBOARD_PATH);
@@ -163,14 +207,35 @@ export async function deletePortfolioAction(
       .select('id');
 
     if (error) {
-      return failureState(toWriteErrorMessage(error));
+      logSupabaseError('deletePortfolioAction: delete portfolios', error, {
+        portfolioId,
+      });
+      return failureState(toWriteErrorMessage(error), toErrorDetail(error));
     }
 
     if (!data || data.length === 0) {
+      logSupabaseError(
+        'deletePortfolioAction: portfolios row not visible to RLS',
+        {
+          code: 'PGRST_NO_ROWS',
+          message:
+            'The delete matched zero rows, so the portfolio is not owned by this user or no longer exists.',
+          details: '',
+          hint: 'No RLS policy allowed the row.',
+        } as PostgrestError,
+        { portfolioId },
+      );
+
       return failureState('ไม่พบพอร์ตโฟลิโอที่ต้องการลบ');
     }
-  } catch {
-    return failureState(GENERIC_WRITE_ERROR_MESSAGE);
+  } catch (caught) {
+    logThrownError('deletePortfolioAction: delete portfolios', caught, {
+      portfolioId,
+    });
+    return failureState(
+      GENERIC_WRITE_ERROR_MESSAGE,
+      toThrownErrorDetail(caught),
+    );
   }
 
   // The page reads ?portfolio= from the URL, so a stale value must not pin the
@@ -207,10 +272,19 @@ export async function setDefaultPortfolioAction(
     });
 
     if (error) {
-      return failureState(toWriteErrorMessage(error));
+      logSupabaseError('setDefaultPortfolioAction: rpc set_default_portfolio', error, {
+        portfolioId,
+      });
+      return failureState(toWriteErrorMessage(error), toErrorDetail(error));
     }
-  } catch {
-    return failureState(GENERIC_WRITE_ERROR_MESSAGE);
+  } catch (caught) {
+    logThrownError('setDefaultPortfolioAction: rpc set_default_portfolio', caught, {
+      portfolioId,
+    });
+    return failureState(
+      GENERIC_WRITE_ERROR_MESSAGE,
+      toThrownErrorDetail(caught),
+    );
   }
 
   revalidatePath(DASHBOARD_PATH);

@@ -210,6 +210,7 @@ function TradeFormBody({
         <Alert
           tone={state.status === 'success' ? 'success' : 'error'}
           message={state.message}
+          detail={state.detail}
         />
       ) : null}
 
@@ -331,6 +332,7 @@ function CashFormBody({
         <Alert
           tone={state.status === 'success' ? 'success' : 'error'}
           message={state.message}
+          detail={state.detail}
         />
       ) : null}
 

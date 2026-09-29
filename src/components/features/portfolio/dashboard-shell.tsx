@@ -34,6 +34,7 @@ import {
   Wallet,
 } from 'lucide-react';
 
+import { Alert } from '@/components/ui/alert';
 import { deleteAssetAction } from '@/app/actions/asset-actions';
 import {
   deletePortfolioAction,
@@ -86,6 +87,11 @@ export interface DashboardShellProps {
   sectorAllocation: readonly AllocationSlice[];
   /** Already localised and safe to render; null when the reads succeeded. */
   readError: string | null;
+  /**
+   * The raw Supabase SQLSTATE behind `readError`, or null when SHOW_ERROR_DETAILS
+   * hides it. Computed on the server - see src/lib/portfolio/diagnostics.ts.
+   */
+  readErrorDetail: string | null;
 }
 
 export function DashboardShell({
@@ -99,6 +105,7 @@ export function DashboardShell({
   typeAllocation,
   sectorAllocation,
   readError,
+  readErrorDetail,
 }: DashboardShellProps) {
   const [dialog, setDialog] = useState<OpenDialog>({ kind: 'none' });
   const close = () => setDialog({ kind: 'none' });
@@ -140,13 +147,10 @@ export function DashboardShell({
         />
       </header>
 
+      {/* The same <Alert> the forms use, so the raw SQLSTATE sits behind the
+          "ดูข้อความจริงจาก Supabase" disclosure here too. */}
       {readError ? (
-        <p
-          role="alert"
-          className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2.5 text-sm text-red-200"
-        >
-          {readError}
-        </p>
+        <Alert tone="error" message={readError} detail={readErrorDetail} />
       ) : null}
 
       {summary ? <SummaryCards summary={summary} /> : null}
