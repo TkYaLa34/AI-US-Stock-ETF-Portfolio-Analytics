@@ -12,7 +12,7 @@
 
 import { redirect } from 'next/navigation';
 
-import { DEFAULT_AUTHENTICATED_PATH } from '@/lib/auth/types';
+import { DEFAULT_AUTHENTICATED_PATH } from './types';
 import { getCurrentUser } from '@/lib/supabase/server';
 
 export interface AuthenticatedUser {
