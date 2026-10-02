@@ -8,10 +8,6 @@
  * balance disagree.
  */
 
-import {
-  createPortfolioAction,
-  updatePortfolioAction,
-} from '@/app/actions/portfolio-actions';
 import { Alert } from '@/components/ui/alert';
 import { FormField } from '@/components/ui/form-field';
 import { Modal } from '@/components/ui/modal';
@@ -20,10 +16,14 @@ import { TextareaField } from '@/components/ui/textarea-field';
 import {
   DESCRIPTION_MAX_LENGTH,
   PORTFOLIO_NAME_MAX_LENGTH,
+  type PortfolioListItem,
 } from '@/lib/portfolio/types';
+import {
+  createPortfolioAction,
+  updatePortfolioAction,
+} from '@/server/actions/portfolio-actions';
 
 import { useModalAction } from './use-modal-action';
-import type { PortfolioListItem } from '@/lib/portfolio/types';
 
 export interface PortfolioFormModalProps {
   /** Present when editing, absent when creating. */

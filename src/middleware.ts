@@ -2,13 +2,13 @@ import { NextResponse, type NextRequest } from 'next/server';
 
 import { safeRedirectPath } from '@/lib/auth/redirect';
 import { MissingEnvError } from '@/lib/env';
-import { updateSession } from '@/lib/supabase/middleware';
+import { updateSession } from '@/lib/supabase/session';
 
 /**
  * Route protection.
  *
  * The middleware runs on every non-static request and does two jobs:
- *   1. refresh the Supabase session (see src/lib/supabase/middleware.ts)
+ *   1. refresh the Supabase session (see src/lib/supabase/session.ts)
  *   2. gate the private routes and bounce signed-in users away from /login
  */
 

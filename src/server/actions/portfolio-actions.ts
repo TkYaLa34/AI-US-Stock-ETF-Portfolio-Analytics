@@ -9,7 +9,7 @@
  * leave the server.
  *
  * Every action follows the same contract as the auth actions in
- * src/app/(auth)/actions.ts:
+ * src/server/actions/auth-actions.ts:
  *   * signature (previousState, formData) so it works with useActionState,
  *   * returns a plain serialisable PortfolioActionState - never throws,
  *   * revalidates the dashboard on success so the RSC re-renders with new data.

@@ -2,8 +2,8 @@
 
 import { createBrowserClient } from '@supabase/ssr';
 
-import type { Database } from '../../types/database.types';
-import { getPublicSupabaseEnv } from '../env';
+import type { Database } from '@/types/database.types';
+import { getPublicSupabaseEnv } from '@/lib/env';
 
 /**
  * Derived from the factory rather than written as `SupabaseClient<Database>`:

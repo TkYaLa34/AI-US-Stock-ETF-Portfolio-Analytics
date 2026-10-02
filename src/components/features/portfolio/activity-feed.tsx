@@ -2,8 +2,8 @@
  * Recent ledger activity, newest first.
  *
  * READ ONLY, and that is not an oversight: the ledger is append only from the
- * UI (see src/app/actions/transaction-actions.ts). There are no edit or delete
- * buttons here, so a user who mis-typed a trade is never offered a "fix" that
+ * UI (see src/server/actions/transaction-actions.ts). There are no edit or
+ * delete buttons here, so a user who mis-typed a trade is never offered a "fix" that
  * would silently rewrite history. The way to correct a mistake is to record an
  * offsetting trade, which leaves both rows visible.
  *

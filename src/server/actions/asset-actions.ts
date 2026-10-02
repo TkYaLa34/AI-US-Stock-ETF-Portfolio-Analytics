@@ -5,7 +5,7 @@
  *
  * Same contract as the portfolio actions: (previousState, formData) in,
  * serialisable PortfolioActionState out, revalidate on success. See
- * src/app/actions/portfolio-actions.ts for the full rationale.
+ * src/server/actions/portfolio-actions.ts for the full rationale.
  *
  * NOTE ON DELETING A POSITION: removing an asset also cascades away its ledger
  * rows (transactions.asset_id is on delete cascade), but the cash its sales

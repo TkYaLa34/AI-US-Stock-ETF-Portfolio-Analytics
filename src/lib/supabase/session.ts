@@ -2,8 +2,8 @@ import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 import type { User } from '@supabase/supabase-js';
 
-import type { Database } from '../../types/database.types';
-import { getPublicSupabaseEnv } from '../env';
+import type { Database } from '@/types/database.types';
+import { getPublicSupabaseEnv } from '@/lib/env';
 
 /** See the note on SupabaseBrowserClient: derived, not hand-written. */
 export type SupabaseMiddlewareClient = ReturnType<

@@ -18,15 +18,11 @@
  *
  * LEDGER IS APPEND ONLY: there is no edit or delete. A mistake is corrected by
  * recording an offsetting trade, so the numbers always tell the truth about
- * what was actually done. See src/app/actions/transaction-actions.ts.
+ * what was actually done. See src/server/actions/transaction-actions.ts.
  */
 
 import { useState } from 'react';
 
-import {
-  createCashMovementAction,
-  createTradeAction,
-} from '@/app/actions/transaction-actions';
 import { Alert } from '@/components/ui/alert';
 import { FormField } from '@/components/ui/form-field';
 import { Modal } from '@/components/ui/modal';
@@ -45,6 +41,10 @@ import {
   type PortfolioListItem,
   type TradeType,
 } from '@/lib/portfolio/types';
+import {
+  createCashMovementAction,
+  createTradeAction,
+} from '@/server/actions/transaction-actions';
 
 import { useModalAction } from './use-modal-action';
 

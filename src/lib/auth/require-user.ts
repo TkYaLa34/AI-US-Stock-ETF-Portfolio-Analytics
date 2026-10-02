@@ -7,13 +7,13 @@
  *
  * IMPORTANT: `redirect()` works by throwing a sentinel error, so callers must
  * invoke this OUTSIDE their try/catch. See signInAction in
- * src/app/(auth)/actions.ts for the same pattern.
+ * src/server/actions/auth-actions.ts for the same pattern.
  */
 
 import { redirect } from 'next/navigation';
 
-import { DEFAULT_AUTHENTICATED_PATH } from './types';
-import { getCurrentUser } from '../supabase/server';
+import { DEFAULT_AUTHENTICATED_PATH } from '@/lib/auth/types';
+import { getCurrentUser } from '@/lib/supabase/server';
 
 export interface AuthenticatedUser {
   id: string;

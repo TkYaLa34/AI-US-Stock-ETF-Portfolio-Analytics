@@ -8,10 +8,6 @@
  * because that would orphan the trades already recorded against it.
  */
 
-import {
-  createAssetAction,
-  updateAssetAction,
-} from '@/app/actions/asset-actions';
 import { Alert } from '@/components/ui/alert';
 import { FormField } from '@/components/ui/form-field';
 import { Modal } from '@/components/ui/modal';
@@ -25,10 +21,15 @@ import {
   EXCHANGE_MAX_LENGTH,
   NOTES_MAX_LENGTH,
   SECTOR_MAX_LENGTH,
+  type AssetListItem,
+  type PortfolioListItem,
 } from '@/lib/portfolio/types';
+import {
+  createAssetAction,
+  updateAssetAction,
+} from '@/server/actions/asset-actions';
 
 import { useModalAction } from './use-modal-action';
-import type { AssetListItem, PortfolioListItem } from '@/lib/portfolio/types';
 
 export interface AssetFormModalProps {
   portfolios: readonly PortfolioListItem[];

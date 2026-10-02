@@ -35,11 +35,6 @@ import {
 } from 'lucide-react';
 
 import { Alert } from '@/components/ui/alert';
-import { deleteAssetAction } from '@/app/actions/asset-actions';
-import {
-  deletePortfolioAction,
-  setDefaultPortfolioAction,
-} from '@/app/actions/portfolio-actions';
 import { DASHBOARD_PATH, PORTFOLIO_QUERY_PARAM } from '@/lib/portfolio/constants';
 import type {
   AllocationSlice,
@@ -51,6 +46,11 @@ import type {
   PortfolioListItem,
   TransactionListItem,
 } from '@/lib/portfolio/types';
+import { deleteAssetAction } from '@/server/actions/asset-actions';
+import {
+  deletePortfolioAction,
+  setDefaultPortfolioAction,
+} from '@/server/actions/portfolio-actions';
 
 import { ActivityFeed } from './activity-feed';
 import { AllocationList } from './allocation-list';

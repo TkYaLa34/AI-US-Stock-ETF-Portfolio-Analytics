@@ -1,8 +1,8 @@
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 
-import type { Database } from '../../types/database.types';
-import { getPublicSupabaseEnv } from '../env';
+import type { Database } from '@/types/database.types';
+import { getPublicSupabaseEnv } from '@/lib/env';
 
 /** See the note on SupabaseBrowserClient: derived, not hand-written. */
 export type SupabaseServerClient = ReturnType<
