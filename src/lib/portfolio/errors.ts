@@ -1,14 +1,13 @@
 /**
  * Maps Supabase / Postgres errors onto messages that are safe to render.
  *
- * The SQL in 20260926000100_create_portfolio_functions.sql raises with machine
- * readable SQLSTATEs, so the app matches on `code` rather than on the English
- * text, which Postgres localises differently depending on lc_messages.
+ * The SQL in initial schema migration raises with machine readable SQLSTATEs,
+ * so the app matches on `code` rather than on the English text.
  */
 
 import type { PostgrestError } from '@supabase/supabase-js';
 
-/** SQLSTATEs raised on purpose by public.record_trade / record_cash_movement. */
+/** SQLSTATEs raised on purpose by public.record_trade. */
 const FUNCTION_ERROR_MESSAGES: Record<string, string> = {
   PT000: 'เซสชันหมดอายุ กรุณาเข้าสู่ระบบอีกครั้ง',
   PT001: 'เงินสดในพอร์ตโฟลิโอไม่เพียงพอสำหรับรายการนี้',

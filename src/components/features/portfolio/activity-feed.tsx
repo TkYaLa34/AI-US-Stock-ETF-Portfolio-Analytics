@@ -1,25 +1,17 @@
 /**
  * Recent ledger activity, newest first.
  *
- * READ ONLY, and that is not an oversight: the ledger is append only from the
- * UI (see src/server/actions/transaction-actions.ts). There are no edit or
- * delete buttons here, so a user who mis-typed a trade is never offered a "fix" that
- * would silently rewrite history. The way to correct a mistake is to record an
- * offsetting trade, which leaves both rows visible.
- *
- * CASH MOVEMENTS ARE TOLD APART FROM TRADES because they have no instrument: a
- * row with no symbol and a quantity of "-" is a DEPOSIT or WITHDRAWAL, and
- * labelling it "ซื้อ" would be wrong.
+ * READ ONLY: the ledger is append only from the UI.
+ * There are no edit or delete buttons here, so a user who mis-typed a trade is
+ * never offered a "fix" that would silently rewrite history.
  */
 
 import { ArrowDownLeft, ArrowUpRight, Wallet } from 'lucide-react';
 
 import { formatDateOnly, formatMoney, formatQuantity } from '@/lib/portfolio/format';
 import {
-  CASH_TYPE_LABELS,
   TRADE_TYPE_LABELS,
   isCashTransaction,
-  type CashType,
   type TradeType,
   type TransactionListItem,
 } from '@/lib/portfolio/types';
@@ -42,14 +34,6 @@ interface LedgerRow {
   notes: string | null;
 }
 
-/**
- * Maps one ledger row onto everything the view needs, in one place, so the icon
- * / colour / label can never disagree with each other.
- *
- * The cast to TradeType / CashType is safe because `isCashTransaction` has
- * already excluded the wrong branch, and both maps are Record<> over a union of
- * exactly the strings the schema allows.
- */
 function toLedgerRow(
   transaction: TransactionListItem,
   currency: string,
@@ -62,11 +46,13 @@ function toLedgerRow(
   };
 
   if (isCashTransaction(transaction)) {
-    const type = transaction.transaction_type as CashType;
     return {
       ...base,
-      typeLabel: CASH_TYPE_LABELS[type] ?? transaction.transaction_type,
-      tone: type === 'DEPOSIT' ? 'cash-in' : 'cash-out',
+      typeLabel:
+        transaction.transaction_type === 'DEPOSIT'
+          ? 'ฝากเงินเข้า'
+          : 'ถอนเงินออก',
+      tone: transaction.transaction_type === 'DEPOSIT' ? 'cash-in' : 'cash-out',
       symbol: '',
       detail: '-',
     };

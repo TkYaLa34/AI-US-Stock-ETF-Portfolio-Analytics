@@ -674,17 +674,13 @@ revoke all on function public.guard_transaction_immutability() from public;
 revoke all on function public.handle_new_user()               from public;
 
 revoke all on function public.record_trade(uuid, uuid, text, numeric, numeric, numeric, date, text) from public;
-revoke all on function public.record_cash_movement(uuid, text, numeric, text) from public;
 revoke all on function public.set_default_portfolio(uuid) from public;
 
 grant execute on function public.record_trade(uuid, uuid, text, numeric, numeric, numeric, date, text) to authenticated;
-grant execute on function public.record_cash_movement(uuid, text, numeric, text) to authenticated;
 grant execute on function public.set_default_portfolio(uuid) to authenticated;
 
 comment on function public.record_trade(uuid, uuid, text, numeric, numeric, numeric, date, text)
   is 'Atomically appends a BUY/SELL and re-derives assets.quantity, assets.average_cost and portfolios.cash_balance.';
-comment on function public.record_cash_movement(uuid, text, numeric, text)
-  is 'Atomically appends a DEPOSIT/WITHDRAWAL and moves portfolios.cash_balance.';
 comment on function public.set_default_portfolio(uuid)
   is 'Atomically moves the is_default flag, honouring the partial unique index.';
 
