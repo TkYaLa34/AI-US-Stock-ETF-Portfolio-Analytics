@@ -57,15 +57,6 @@ export const TRADE_TYPE_LABELS: Record<TradeType, string> = {
   SELL: 'ขาย',
 };
 
-/** The subset of transactions_type_allowed that only moves cash. */
-export const CASH_TYPES = ['DEPOSIT', 'WITHDRAWAL'] as const;
-export type CashType = (typeof CASH_TYPES)[number];
-
-export const CASH_TYPE_LABELS: Record<CashType, string> = {
-  DEPOSIT: 'ฝากเงินเข้า',
-  WITHDRAWAL: 'ถอนเงินออก',
-};
-
 /** Every column value that is an ISO-4217 code must match this. */
 export const CURRENCY_PATTERN = /^[A-Z]{3}$/;
 

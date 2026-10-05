@@ -31,7 +31,6 @@ import {
   Plus,
   Star,
   Trash2,
-  Wallet,
 } from 'lucide-react';
 
 import { Alert } from '@/components/ui/alert';
@@ -59,16 +58,13 @@ import { ConfirmDialog } from './confirm-dialog';
 import { PortfolioFormModal } from './portfolio-form-modal';
 import { PositionsTable } from './positions-table';
 import { SummaryCards } from './summary-cards';
-import {
-  TransactionFormModal,
-  type TransactionMode,
-} from './transaction-form-modal';
+import { TransactionFormModal } from './transaction-form-modal';
 
 export type OpenDialog =
   | { kind: 'none' }
   | { kind: 'portfolio-form'; portfolioId: string | null }
   | { kind: 'asset-form'; assetId: string | null }
-  | { kind: 'transaction'; mode: TransactionMode }
+  | { kind: 'transaction' }
   | { kind: 'set-default'; portfolioId: string }
   | { kind: 'delete-portfolio'; portfolioId: string }
   | { kind: 'delete-asset'; assetId: string };
@@ -125,7 +121,6 @@ export function DashboardShell({
             </p>
           </div>
 
-          {/* Sign-out must be a POST, see src/app/auth/signout/route.ts. */}
           <form action="/auth/signout" method="post" className="shrink-0">
             <button
               type="submit"
@@ -147,15 +142,12 @@ export function DashboardShell({
         />
       </header>
 
-      {/* The same <Alert> the forms use, so the raw SQLSTATE sits behind the
-          "ดูข้อความจริงจาก Supabase" disclosure here too. */}
       {readError ? (
         <Alert tone="error" message={readError} detail={readErrorDetail} />
       ) : null}
 
       {summary ? <SummaryCards summary={summary} /> : null}
 
-      {/* No portfolio yet: onboarding beats an empty grid of zeroes. */}
       {selectedPortfolio === null ? (
         <EmptyState
           hasPortfolios={portfolios.length > 0}
@@ -168,10 +160,7 @@ export function DashboardShell({
           <Toolbar
             portfolioName={selectedPortfolio.name}
             onRecordTrade={() =>
-              setDialog({ kind: 'transaction', mode: 'trade' })
-            }
-            onRecordCash={() =>
-              setDialog({ kind: 'transaction', mode: 'cash' })
+              setDialog({ kind: 'transaction' })
             }
             onAddAsset={() => setDialog({ kind: 'asset-form', assetId: null })}
           />
@@ -214,7 +203,7 @@ export function DashboardShell({
             <ActivityFeed
               transactions={transactions}
               currency={currency}
-              emptyHint="เริ่มจากฝากเงินเข้า หรือเพิ่มหลักทรัพย์ที่คุณถืออยู่แล้ว"
+              emptyHint="เริ่มจากเพิ่มหลักทรัพย์และบันทึกรายการซื้อ/ขายในพอร์ตโฟลิโอของคุณ"
             />
           </section>
         </>
@@ -236,8 +225,6 @@ export function DashboardShell({
   );
 }
 
-
-
 interface PortfolioSwitcherProps {
   portfolios: readonly PortfolioListItem[];
   selectedId: string | null;
@@ -247,17 +234,6 @@ interface PortfolioSwitcherProps {
   onSetDefault: (portfolioId: string) => void;
 }
 
-/**
- * Portfolio navigation.
- *
- * Switching is a LINK, not client-side state, because the selected portfolio is
- * a URL parameter (`?portfolio=`). Keeping it in the URL makes the dashboard
- * shareable and refresh-safe, and lets the page stay a Server Component that
- * renders the right portfolio directly instead of fetching everything twice.
- *
- * `scroll={false}` stops Next from jumping the viewport on every switch, which
- * matters on mobile where this list scrolls horizontally.
- */
 function PortfolioSwitcher({
   portfolios,
   selectedId,
@@ -390,21 +366,12 @@ function ToolbarButton({
 interface ToolbarProps {
   portfolioName: string;
   onRecordTrade: () => void;
-  onRecordCash: () => void;
   onAddAsset: () => void;
 }
 
-/**
- * The three things a user actually came to do, in priority order.
- *
- * "บันทึกรายการ" is primary because the ledger is the source of truth - every
- * other number on this page is derived from it. Adding a holding by hand is the
- * secondary path, for an instrument bought elsewhere or transferred in.
- */
 function Toolbar({
   portfolioName,
   onRecordTrade,
-  onRecordCash,
   onAddAsset,
 }: ToolbarProps) {
   return (
@@ -422,15 +389,6 @@ function Toolbar({
         >
           <ArrowLeftRight aria-hidden="true" className="h-4 w-4" />
           บันทึกรายการซื้อ / ขาย
-        </button>
-
-        <button
-          type="button"
-          onClick={onRecordCash}
-          className="inline-flex items-center justify-center gap-2 rounded-lg border border-surface-border bg-surface-raised px-4 py-2.5 text-sm font-medium text-slate-200 transition-colors hover:border-brand-500"
-        >
-          <Wallet aria-hidden="true" className="h-4 w-4" />
-          ฝาก / ถอนเงิน
         </button>
 
         <button
@@ -462,7 +420,7 @@ function EmptyState({
       </h2>
       <p className="mx-auto mt-2 max-w-md text-sm text-slate-400">
         {hasPortfolios
-          ? 'เลือกพอร์ตโฟลิโอจากเมนูด้านบน แล้วเริ่มบันทึกรายการซื้อ/ขายหรือฝากเงินเข้าได้เลย'
+          ? 'เลือกพอร์ตโฟลิโอจากเมนูด้านบน แล้วเริ่มบันทึกรายการซื้อ/ขายได้เลย'
           : 'สร้างพอร์ตโฟลิโอแรกของคุณ แล้วคุณจะสามารถเพิ่มหลักทรัพย์และติดตามผลตอบแทนได้'}
       </p>
 
@@ -488,17 +446,6 @@ interface DashboardDialogsProps {
   allAssets: readonly AssetListItem[];
 }
 
-/**
- * Renders at most one dialog, chosen by the `kind` discriminant.
- *
- * A `switch` with one case per `kind` is deliberate: adding a new dialog kind
- * makes the compiler point at this function, so a dialog can never be added
- * without deciding how it renders.
- *
- * Each form is keyed by the id it edits. That is what forces a fresh mount -
- * and therefore a fresh `useActionState` - every time a dialog is opened, which
- * is what stops a stale "success" from closing the dialog the instant it opens.
- */
 function DashboardDialogs({
   dialog,
   onClose,
@@ -544,11 +491,10 @@ function DashboardDialogs({
     case 'transaction':
       return (
         <TransactionFormModal
-          key={`transaction-${dialog.mode}`}
+          key="transaction"
           portfolios={portfolios}
           assets={allAssets}
           defaultPortfolioId={defaultPortfolioId}
-          defaultMode={dialog.mode}
           onClose={onClose}
         />
       );
@@ -610,7 +556,7 @@ function DashboardDialogs({
         <ConfirmDialog
           key={`delete-asset-${asset.id}`}
           title={`ลบหลักทรัพย์ ${asset.symbol}?`}
-          description={`รายการซื้อ/ขายของ ${asset.name} ที่เกี่ยวข้องจะถูกลบไปด้วย เงินสดที่ได้จากการขายจะยังคงอยู่ในพอร์ตโฟลิโอ`}
+          description={`รายการซื้อ/ขายของ ${asset.name} ที่เกี่ยวข้องจะถูกลบไปด้วย`}
           confirmLabel="ลบหลักทรัพย์"
           pendingLabel="กำลังลบ..."
           action={deleteAssetAction}
@@ -624,4 +570,3 @@ function DashboardDialogs({
       return null;
   }
 }
-
