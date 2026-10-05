@@ -561,6 +561,71 @@ begin
 end;
 $$;
 
+create or replace function public.record_cash_movement(
+  p_portfolio_id     uuid,
+  p_transaction_type text,
+  p_amount           numeric,
+  p_notes            text default null
+)
+returns uuid
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+declare
+  v_user_id uuid;
+  v_amount  numeric := round(coalesce(p_amount, 0), 6);
+  v_tx_id   uuid;
+begin
+  v_user_id := (select auth.uid());
+
+  if v_user_id is null then
+    raise exception 'AUTH_REQUIRED' using errcode = 'PT000';
+  end if;
+
+  if p_transaction_type is null or p_transaction_type not in ('DEPOSIT', 'WITHDRAWAL') then
+    raise exception 'UNSUPPORTED_TYPE' using errcode = 'PT004';
+  end if;
+
+  if p_amount is null or p_amount <= 0 then
+    raise exception 'INVALID_AMOUNT' using errcode = 'PT004';
+  end if;
+
+  if not exists (
+    select 1 from public.portfolios p where p.id = p_portfolio_id
+  ) then
+    raise exception 'PORTFOLIO_NOT_FOUND' using errcode = 'PT002';
+  end if;
+
+  if p_transaction_type = 'WITHDRAWAL' and exists (
+    select 1
+    from public.portfolios p
+    where p.id = p_portfolio_id and p.cash_balance < v_amount
+  ) then
+    raise exception 'INSUFFICIENT_CASH' using errcode = 'PT001';
+  end if;
+
+  insert into public.transactions (
+    portfolio_id, asset_id, user_id, transaction_type,
+    quantity, price, total_amount, fees, trade_date, notes
+  )
+  values (
+    p_portfolio_id, null, v_user_id, p_transaction_type,
+    null, null, v_amount, 0, current_date, nullif(btrim(p_notes), '')
+  )
+  returning id into v_tx_id;
+
+  update public.portfolios
+  set cash_balance = case
+        when p_transaction_type = 'DEPOSIT' then cash_balance + v_amount
+        else cash_balance - v_amount
+      end
+  where id = p_portfolio_id;
+
+  return v_tx_id;
+end;
+$$;
+
 create or replace function public.set_default_portfolio(p_portfolio_id uuid)
 returns boolean
 language plpgsql
