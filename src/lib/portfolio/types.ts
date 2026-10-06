@@ -208,19 +208,3 @@ export interface TransactionListItem {
   assetName: string | null;
 }
 
-/**
- * True when a ledger row is a cash movement rather than a trade.
- *
- * Pure and dependency free, so the activity feed can branch on it in the browser
- * without the row ever going back to the database. The two literals are the
- * cash-only members of the transactions_type_allowed CHECK constraint; the
- * activity feed relies on this to avoid labelling a DEPOSIT as a "ซื้อ".
- */
-export function isCashTransaction(
-  transaction: Pick<TransactionListItem, 'transaction_type'>,
-): boolean {
-  return (
-    transaction.transaction_type === 'DEPOSIT' ||
-    transaction.transaction_type === 'WITHDRAWAL'
-  );
-}

@@ -2,16 +2,14 @@
  * Recent ledger activity, newest first.
  *
  * READ ONLY: the ledger is append only from the UI.
- * There are no edit or delete buttons here, so a user who mis-typed a trade is
- * never offered a "fix" that would silently rewrite history.
+ * Displays exclusively BUY and SELL trades for stocks/ETFs.
  */
 
-import { ArrowDownLeft, ArrowUpRight, Wallet } from 'lucide-react';
+import { ArrowDownLeft, ArrowUpRight } from 'lucide-react';
 
 import { formatDateOnly, formatMoney, formatQuantity } from '@/lib/portfolio/format';
 import {
   TRADE_TYPE_LABELS,
-  isCashTransaction,
   type TradeType,
   type TransactionListItem,
 } from '@/lib/portfolio/types';
@@ -26,7 +24,7 @@ export interface ActivityFeedProps {
 interface LedgerRow {
   id: string;
   typeLabel: string;
-  tone: 'buy' | 'sell' | 'cash-in' | 'cash-out';
+  tone: 'buy' | 'sell';
   symbol: string;
   detail: string;
   amount: string;
@@ -45,19 +43,6 @@ function toLedgerRow(
     notes: transaction.notes,
   };
 
-  if (isCashTransaction(transaction)) {
-    return {
-      ...base,
-      typeLabel:
-        transaction.transaction_type === 'DEPOSIT'
-          ? 'ฝากเงินเข้า'
-          : 'ถอนเงินออก',
-      tone: transaction.transaction_type === 'DEPOSIT' ? 'cash-in' : 'cash-out',
-      symbol: '',
-      detail: '-',
-    };
-  }
-
   const type = transaction.transaction_type as TradeType;
   return {
     ...base,
@@ -74,8 +59,6 @@ function toLedgerRow(
 const TONE_CLASSES: Record<LedgerRow['tone'], string> = {
   buy: 'text-brand-300 bg-brand-500/15',
   sell: 'text-amber-300 bg-amber-500/15',
-  'cash-in': 'text-emerald-300 bg-emerald-500/15',
-  'cash-out': 'text-slate-300 bg-surface-border',
 };
 
 function RowIcon({ tone }: { tone: LedgerRow['tone'] }) {
@@ -84,10 +67,7 @@ function RowIcon({ tone }: { tone: LedgerRow['tone'] }) {
   if (tone === 'buy') {
     return <ArrowDownLeft aria-hidden="true" className={className} />;
   }
-  if (tone === 'sell') {
-    return <ArrowUpRight aria-hidden="true" className={className} />;
-  }
-  return <Wallet aria-hidden="true" className={className} />;
+  return <ArrowUpRight aria-hidden="true" className={className} />;
 }
 
 export function ActivityFeed({

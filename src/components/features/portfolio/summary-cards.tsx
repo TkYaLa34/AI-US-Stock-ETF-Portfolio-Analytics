@@ -81,7 +81,7 @@ export function SummaryCards({ summary }: SummaryCardsProps) {
       <MetricCard
         label="เงินสดคงเหลือ"
         value={formatMoney(summary.cashBalance, currency)}
-        secondary="ใช้ซื้อหลักทรัพย์หรือถอนออกได้"
+        secondary="ยอดเงินสดคงเหลือสำหรับส่งคำสั่งซื้อ"
       />
 
       <MetricCard

@@ -38,7 +38,6 @@ export type {
   PortfolioListItem,
   TransactionListItem,
 } from './types';
-export { isCashTransaction } from './types';
 
 export interface QueryResult<T> {
   data: T;
@@ -199,6 +198,7 @@ export async function listRecentTransactions(
       .from('transactions')
       .select(TRANSACTION_COLUMNS)
       .eq('portfolio_id', portfolioId)
+      .in('transaction_type', ['BUY', 'SELL'])
       .order('trade_date', { ascending: false })
       .order('created_at', { ascending: false })
       .limit(limit);
