@@ -17,11 +17,9 @@
 
 import {
   ASSET_NAME_MAX_LENGTH,
-  CASH_TYPES,
   CURRENCY_PATTERN,
   DESCRIPTION_MAX_LENGTH,
   EXCHANGE_MAX_LENGTH,
-  MAX_CASH_DECIMAL_PLACES,
   MAX_DECIMAL_PLACES,
   NOTES_MAX_LENGTH,
   PORTFOLIO_NAME_MAX_LENGTH,
@@ -29,7 +27,6 @@ import {
   SYMBOL_PATTERN,
   TRADE_TYPES,
   UUID_PATTERN,
-  type CashType,
   type PortfolioFieldErrors,
   type TradeType,
 } from './types';
@@ -551,83 +548,6 @@ export function validateTrade(formData: FormData): {
       // A blank fee is a zero fee, not an error.
       fees: fees ?? 0,
       tradeDate,
-      notes,
-    },
-  };
-}
-
-// -----------------------------------------------------------------------------
-// transactions: DEPOSIT / WITHDRAWAL
-// -----------------------------------------------------------------------------
-
-export interface CashMovementInput {
-  portfolioId: string;
-  transactionType: CashType;
-  amount: number;
-  notes: string | null;
-}
-
-/**
- * DEPOSIT / WITHDRAWAL move portfolios.cash_balance and nothing else, so the
- * rules are a subset of validateTrade's: no asset, no quantity, no price.
- *
- * MAX_CASH_DECIMAL_PLACES is used rather than MAX_DECIMAL_PLACES because the
- * balance it has to land in is numeric(20,4) - a tenth of a satoshi would be
- * silently rounded by the column, so the form refuses it up front instead.
- */
-export function validateCashMovement(formData: FormData): {
-  fieldErrors: PortfolioFieldErrors;
-  values: CashMovementInput | null;
-} {
-  const fieldErrors: PortfolioFieldErrors = {};
-
-  const portfolioId = validateUuid(
-    formData,
-    'portfolioId',
-    'พอร์ตโฟลิโอ',
-    fieldErrors,
-  );
-
-  const rawType = readField(formData, 'transactionType');
-  const transactionType = CASH_TYPES.find((type) => type === rawType);
-  if (transactionType === undefined) {
-    fieldErrors.transactionType =
-      'กรุณาเลือกประเภทรายการ (ฝากเงินเข้า หรือ ถอนเงินออก)';
-  }
-
-  const amount = validateDecimalField(
-    formData,
-    'amount',
-    'จำนวนเงิน',
-    MAX_CASH_DECIMAL_PLACES,
-    { exclusiveMin: true, allowBlank: false },
-    fieldErrors,
-  );
-
-  const notes = validateLength(
-    formData,
-    'notes',
-    'หมายเหตุ',
-    NOTES_MAX_LENGTH,
-    { required: false },
-    fieldErrors,
-  );
-
-  if (
-    hasErrors(fieldErrors) ||
-    portfolioId === null ||
-    transactionType === undefined ||
-    amount === null
-  ) {
-    return { fieldErrors, values: null };
-  }
-
-  return {
-    fieldErrors,
-    values: {
-      portfolioId,
-      transactionType,
-      amount,
       notes,
     },
   };
