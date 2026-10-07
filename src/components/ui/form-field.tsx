@@ -17,6 +17,8 @@ export interface FormFieldProps {
   minLength?: number;
   maxLength?: number;
   defaultValue?: string | number;
+  value?: string | number;
+  onChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
   /**
    * Numeric constraints. Passed straight through to the input so the browser's
    * own stepper and validation match the server rules in
@@ -60,6 +62,8 @@ export function FormField({
   minLength,
   maxLength,
   defaultValue,
+  value,
+  onChange,
   min,
   max,
   step,
@@ -92,6 +96,8 @@ export function FormField({
         minLength={minLength}
         maxLength={maxLength}
         defaultValue={defaultValue}
+        value={value}
+        onChange={onChange}
         min={min}
         max={max}
         step={step}
