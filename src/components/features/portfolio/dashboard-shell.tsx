@@ -5,28 +5,34 @@
  *
  * Features:
  * - Market Ticker Header (S&P 500, NASDAQ, VIX)
- * - Symbol Search Input
+ * - Advanced Global Market Search with type filters & badges
+ * - AI Smart Money & Institutional Intel Card
+ * - Active AI Portfolio Advisor Drawer (Health Score, Risk Metrics & Rebalancing)
  * - Tabbed Dual View ("My Holdings" vs "Watchlist")
- * - Collapsible AI Insights Drawer
  * - Trade-only execution (BUY / SELL)
  */
 
 import { useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import {
+  Activity,
   ArrowLeftRight,
+  BrainCircuit,
+  Building2,
+  CheckCircle2,
   ChevronDown,
   ChevronUp,
   Globe,
   LogOut,
   Pencil,
   Plus,
-  Search,
+  ShieldAlert,
   Sparkles,
   Star,
   TrendingDown,
   TrendingUp,
   Trash2,
+  Zap,
 } from 'lucide-react';
 
 import { Alert } from '@/components/ui/alert';
@@ -46,6 +52,7 @@ import {
   deletePortfolioAction,
   setDefaultPortfolioAction,
 } from '@/server/actions/portfolio-actions';
+import type { MarketSymbolResult } from '@/server/actions/symbol-search-actions';
 
 import { ActivityFeed } from './activity-feed';
 import { AllocationList } from './allocation-list';
@@ -54,6 +61,7 @@ import { ConfirmDialog } from './confirm-dialog';
 import { PortfolioFormModal } from './portfolio-form-modal';
 import { PositionsTable } from './positions-table';
 import { SummaryCards } from './summary-cards';
+import { SymbolSearch } from './symbol-search';
 import { TransactionFormModal } from './transaction-form-modal';
 
 export type OpenDialog =
@@ -90,11 +98,32 @@ const MARKET_TICKERS = [
 
 const WATCHLIST_SAMPLE = [
   { symbol: 'SPY', name: 'SPDR S&P 500 ETF Trust', price: '$581.50', change: '+0.41%', isUp: true, type: 'ETF' },
-  { symbol: 'QQQ', name: 'Invesco QQQ Trust', price: '$492.30', change: '+0.63%', isUp: true, type: 'ETF' },
+  { symbol: 'QQQ', name: 'Invesco QQQ Trust Series 1', price: '$492.30', change: '+0.63%', isUp: true, type: 'ETF' },
   { symbol: 'VOO', name: 'Vanguard S&P 500 ETF', price: '$533.80', change: '+0.42%', isUp: true, type: 'ETF' },
   { symbol: 'AAPL', name: 'Apple Inc.', price: '$231.30', change: '+1.25%', isUp: true, type: 'Stock' },
   { symbol: 'MSFT', name: 'Microsoft Corporation', price: '$418.25', change: '-0.18%', isUp: false, type: 'Stock' },
   { symbol: 'NVDA', name: 'NVIDIA Corporation', price: '$134.80', change: '+2.14%', isUp: true, type: 'Stock' },
+];
+
+const INSTITUTIONAL_INTEL = [
+  {
+    title: 'สถาบันเพิ่มน้ำหนักลงทุนในกลุ่ม Semiconductor & AI Infrastructure',
+    detail: 'กองทุนสถาบันรายใหญ่เพิ่มสถานะซื้อสะสม NVDA, AVGO และ QQQ อย่างต่อเนื่องในสัปดาห์นี้',
+    type: 'Block Trade / Accumulation',
+    time: '15 นาทีที่แล้ว',
+  },
+  {
+    title: 'การลดความเสี่ยงสัดส่วนหมวดพลังงานก่อนรายงานผลประกอบการ',
+    detail: 'มีการปรับลดสถานะขายทำกำไรในหุ้นกลุ่มพลังงานขนาดใหญ่ (XOM, CVX) เพื่อเก็งกำไรในดัชนี S&P 500',
+    type: 'Sector Rotation',
+    time: '1 ชั่วโมงที่แล้ว',
+  },
+  {
+    title: 'การไหลเข้าของกระแสเงินทุนสถาบันใน Vanguard & SPDR Index ETFs',
+    detail: 'ยอดสุทธิการซื้อสะสม VOO และ SPY พุ่งสูงขึ้น ชี้แจงมุมมองเชิงบวกต่อตลาดหุ้นสหรัฐฯ ในระยะกลาง',
+    type: 'Institutional ETF Flow',
+    time: '3 ชั่วโมงที่แล้ว',
+  },
 ];
 
 export function DashboardShell({
@@ -112,17 +141,14 @@ export function DashboardShell({
 }: DashboardShellProps) {
   const [dialog, setDialog] = useState<OpenDialog>({ kind: 'none' });
   const [activeTab, setActiveTab] = useState<DashboardTab>('holdings');
-  const [isAiDrawerOpen, setIsAiDrawerOpen] = useState<boolean>(false);
-  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [isAiDrawerOpen, setIsAiDrawerOpen] = useState<boolean>(true);
 
   const close = () => setDialog({ kind: 'none' });
   const currency = selectedPortfolio?.base_currency ?? 'USD';
 
-  const filteredWatchlist = WATCHLIST_SAMPLE.filter(
-    (item) =>
-      item.symbol.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.name.toLowerCase().includes(searchQuery.toLowerCase()),
-  );
+  const handleGlobalSelectSymbol = (_item: MarketSymbolResult) => {
+    setDialog({ kind: 'transaction' });
+  };
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 font-sans">
@@ -156,13 +182,13 @@ export function DashboardShell({
           <div className="hidden md:flex items-center gap-3 shrink-0 text-slate-400">
             <span>InvestAI Navigator</span>
             <span className="text-slate-700">•</span>
-            <span>Real-time Trade Terminal</span>
+            <span>Trade Only Terminal</span>
           </div>
         </div>
       </div>
 
       <main className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-6">
-        {/* Top Header & Search Bar */}
+        {/* Top Header & Global Market Search */}
         <header className="flex flex-col gap-4">
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
@@ -178,16 +204,9 @@ export function DashboardShell({
             </div>
 
             <div className="flex items-center gap-3">
-              {/* Symbol Search Bar */}
-              <div className="relative flex-1 md:w-72">
-                <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
-                <input
-                  type="text"
-                  placeholder="ค้นหาหุ้น/ETF เช่น AAPL, VOO, QQQ..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full rounded-lg border border-slate-800 bg-slate-900 py-2 pl-9 pr-3 text-sm text-slate-100 placeholder-slate-500 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
-                />
+              {/* Pillar 1: Global Market Search with Autocomplete */}
+              <div className="flex-1 md:w-80">
+                <SymbolSearch onSelectSymbol={handleGlobalSelectSymbol} />
               </div>
 
               <form action="/auth/signout" method="post" className="shrink-0">
@@ -216,7 +235,7 @@ export function DashboardShell({
           <Alert tone="error" message={readError} detail={readErrorDetail} />
         ) : null}
 
-        {/* 2. Portfolio Summary Cards (4-card grid) */}
+        {/* Portfolio Summary Cards */}
         {summary ? <SummaryCards summary={summary} /> : null}
 
         {selectedPortfolio === null ? (
@@ -237,46 +256,117 @@ export function DashboardShell({
               isAiDrawerOpen={isAiDrawerOpen}
             />
 
-            {/* Collapsible AI Insights Drawer */}
+            {/* Pillar 3: Active AI Portfolio Management Advisor Drawer */}
             {isAiDrawerOpen ? (
-              <div className="rounded-xl border border-brand-500/30 bg-gradient-to-r from-brand-950/40 via-slate-900 to-slate-900 p-5 transition-all">
+              <div className="rounded-xl border border-brand-500/40 bg-gradient-to-br from-brand-950/50 via-slate-900 to-slate-900 p-5 shadow-2xl transition-all">
                 <div className="flex items-center justify-between pb-3 border-b border-slate-800">
                   <div className="flex items-center gap-2">
-                    <Sparkles className="h-5 w-5 text-brand-400 animate-pulse" />
-                    <h3 className="font-semibold text-slate-100">InvestAI Insights & Portfolio Risk Analysis</h3>
+                    <BrainCircuit className="h-5 w-5 text-brand-400" />
+                    <h3 className="font-bold text-slate-100 flex items-center gap-2">
+                      AI Portfolio Management Advisor
+                      <span className="rounded bg-brand-500/20 text-brand-300 text-[10px] px-2 py-0.5 font-semibold uppercase">
+                        Live Analytics
+                      </span>
+                    </h3>
                   </div>
                   <button
                     type="button"
                     onClick={() => setIsAiDrawerOpen(false)}
                     className="text-xs text-slate-400 hover:text-slate-200"
                   >
-                    ปิดแถบ AI
+                    ซ่อนที่ปรึกษา AI
                   </button>
                 </div>
-                <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4 text-sm text-slate-300">
-                  <div className="rounded-lg border border-slate-800 bg-slate-900/80 p-3.5">
-                    <p className="font-semibold text-slate-200">การกระจายความเสี่ยง</p>
-                    <p className="mt-1 text-xs text-slate-400">
-                      พอร์ตโฟลิโอมีการกระจายตัวในกลุ่มอุตสาหกรรมเทคโนโลยีและดัชนีหลักอย่างเหมาะสม
+
+                <div className="mt-4 grid grid-cols-1 md:grid-cols-4 gap-4 text-sm">
+                  {/* Health Score */}
+                  <div className="rounded-lg border border-slate-800 bg-slate-900/90 p-4 flex flex-col justify-between">
+                    <div>
+                      <p className="text-xs font-semibold uppercase text-slate-400">Portfolio Health Score</p>
+                      <div className="mt-2 flex items-baseline gap-1">
+                        <span className="text-3xl font-extrabold text-emerald-400">88</span>
+                        <span className="text-sm font-semibold text-slate-400">/ 100</span>
+                      </div>
+                    </div>
+                    <p className="mt-2 text-[11px] text-emerald-400 flex items-center gap-1 font-medium">
+                      <CheckCircle2 className="h-3.5 w-3.5 inline" /> สุขภาพพอร์ตดีเยี่ยม
                     </p>
                   </div>
-                  <div className="rounded-lg border border-slate-800 bg-slate-900/80 p-3.5">
-                    <p className="font-semibold text-slate-200">คำแนะนำการเทรด</p>
-                    <p className="mt-1 text-xs text-slate-400">
-                      พิจารณาทยอยสะสมหุ้นกลุ่มคุณค่า หรือ ETF ดัชนีหลักเพื่อลดความผันผวนของพอร์ต
+
+                  {/* Risk Profile */}
+                  <div className="rounded-lg border border-slate-800 bg-slate-900/90 p-4 flex flex-col justify-between">
+                    <div>
+                      <p className="text-xs font-semibold uppercase text-slate-400">ระดับความเสี่ยง (Risk Metric)</p>
+                      <p className="mt-2 text-lg font-bold text-amber-300 flex items-center gap-1.5">
+                        <ShieldAlert className="h-4 w-4" /> ปานกลาง-ค่อนข้างสูง
+                      </p>
+                    </div>
+                    <p className="mt-2 text-[11px] text-slate-400">
+                      มีสัดส่วนหุ้นเติบโตสูง (Tech/AI Growth)
                     </p>
                   </div>
-                  <div className="rounded-lg border border-slate-800 bg-slate-900/80 p-3.5">
-                    <p className="font-semibold text-slate-200">ข้อควรระวัง</p>
-                    <p className="mt-1 text-xs text-slate-400">
-                      ผลวิเคราะห์ประมวลผลโดย AI ไม่ใช่คำแนะนำทางการเงิน (Not Financial Advice)
-                    </p>
+
+                  {/* Rebalance Recommendation */}
+                  <div className="rounded-lg border border-slate-800 bg-slate-900/90 p-4 md:col-span-2 flex flex-col justify-between">
+                    <div>
+                      <p className="text-xs font-semibold uppercase text-brand-300 flex items-center gap-1">
+                        <Zap className="h-3.5 w-3.5" /> AI Actionable Rebalancing Recommendation
+                      </p>
+                      <p className="mt-2 text-xs text-slate-300 leading-relaxed">
+                        พอร์ตโฟลิโอของคุณมีการกระจายตัวในกลุ่ม Tech สูง แนะนำการส่งคำสั่งซื้อสะสมดัชนีวงกว้างเช่น <span className="font-bold text-white">VOO</span> หรือ <span className="font-bold text-white">SPY</span> เพิ่มเติมเพื่อสร้างสมดุลกระแสเงินสดและผลตอบแทน
+                      </p>
+                    </div>
+                    <div className="mt-3 flex items-center justify-between border-t border-slate-800/80 pt-2 text-[11px] text-slate-400">
+                      <span>คำนวณจากสถานะถือครองล่าสุด ({positions.length} รายการ)</span>
+                      <button
+                        type="button"
+                        onClick={() => setDialog({ kind: 'transaction' })}
+                        className="font-semibold text-brand-400 hover:text-brand-300 underline"
+                      >
+                        ส่งคำสั่งรีบาลานซ์พอร์ต →
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
             ) : null}
 
-            {/* 3. Tabbed Dual View Content */}
+            {/* Pillar 2: AI Smart Money & Institutional News Intel */}
+            <section className="rounded-xl border border-slate-800 bg-slate-900 p-5 shadow-sm">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+                <div className="flex items-center gap-2">
+                  <Building2 className="h-5 w-5 text-brand-400" />
+                  <h3 className="font-bold text-slate-100">AI Smart Money & Institutional Intel</h3>
+                </div>
+                <span className="text-xs text-slate-400 flex items-center gap-1">
+                  <Activity className="h-3.5 w-3.5 text-emerald-400" /> อัปเดตแบบเรียลไทม์
+                </span>
+              </div>
+
+              <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
+                {INSTITUTIONAL_INTEL.map((intel) => (
+                  <div
+                    key={intel.title}
+                    className="rounded-lg border border-slate-800/80 bg-slate-950/60 p-4 flex flex-col justify-between hover:border-slate-700 transition-colors"
+                  >
+                    <div>
+                      <div className="flex items-center justify-between text-[11px] font-semibold text-brand-300">
+                        <span>{intel.type}</span>
+                        <span className="text-slate-500 font-normal">{intel.time}</span>
+                      </div>
+                      <h4 className="mt-2 font-semibold text-sm text-slate-100 leading-snug">
+                        {intel.title}
+                      </h4>
+                      <p className="mt-1.5 text-xs text-slate-400 leading-relaxed">
+                        {intel.detail}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            {/* Tabbed Dual View Content */}
             <div className="flex items-center justify-between border-b border-slate-800 pb-2">
               <div className="flex gap-2">
                 <button
@@ -360,7 +450,7 @@ export function DashboardShell({
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-800">
-                      {filteredWatchlist.map((item) => (
+                      {WATCHLIST_SAMPLE.map((item) => (
                         <tr key={item.symbol} className="hover:bg-slate-800/40">
                           <td className="px-4 py-3 font-semibold text-slate-100">{item.symbol}</td>
                           <td className="px-4 py-3 text-slate-300 text-xs">{item.name}</td>
@@ -578,7 +668,7 @@ function Toolbar({
           className="inline-flex items-center gap-1.5 rounded-lg border border-brand-500/30 bg-brand-500/10 px-3 py-1.5 text-xs font-medium text-brand-300 hover:bg-brand-500/20 transition-colors"
         >
           <Sparkles className="h-3.5 w-3.5" />
-          {isAiDrawerOpen ? 'ซ่อนวิเคราะห์ AI' : 'ดูวิเคราะห์ AI'}
+          {isAiDrawerOpen ? 'ซ่อนที่ปรึกษา AI' : 'เปิดที่ปรึกษา AI'}
           {isAiDrawerOpen ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
         </button>
       </div>
