@@ -1,21 +1,21 @@
 'use client';
 
 /**
- * Interactive half of the dashboard with InvestAI Navigator theme.
+ * US Stock & ETF Portfolio Analytics Dashboard.
  *
- * Features:
- * - Market Ticker Header (S&P 500, NASDAQ, VIX)
- * - Advanced Global Market Search with type filters & badges
- * - AI Smart Money & Institutional Intel Card
- * - Active AI Portfolio Advisor Drawer (Health Score, Risk Metrics & Rebalancing)
- * - Tabbed Dual View ("My Holdings" vs "Watchlist")
- * - Trade-only execution (BUY / SELL)
+ * Provides a clean vertical layout featuring:
+ * 1. Top Navigation & US Market Search Bar
+ * 2. Section 1: Portfolio Health & Summary Grid (Health Score, 4-Card Metrics, AI Rebalancing Insights)
+ * 3. Section 2: AI Institutional Intel & Smart Money Feed ("Exec Sum" & "OUR TAKE")
+ * 4. Section 3: Sequential Asset Deep-Dive View (At a Glance, Analyst Consensus & Targets, 5-Year Forecast Chart, Social Sentiment, Earnings)
+ * 5. Section 4: Collapsible AI Advisor Drawer
  */
 
 import { useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import {
   Activity,
+  BarChart3,
   ArrowLeftRight,
   BrainCircuit,
   Building2,
@@ -23,12 +23,19 @@ import {
   ChevronDown,
   ChevronUp,
   Globe,
+  LineChart,
   LogOut,
   Pencil,
   Plus,
   ShieldAlert,
   Sparkles,
   Star,
+  Target,
+  ThumbsUp,
+  Trash2,
+  TrendingDown,
+  TrendingUp,
+  Users,
   TrendingDown,
   TrendingUp,
   Trash2,
@@ -96,6 +103,20 @@ const MARKET_TICKERS = [
   { symbol: 'US 10Y', value: '4.08%', change: '+0.03%', isUp: true },
 ];
 
+const INSTITUTIONAL_INTEL = [
+  {
+    title: 'กองทุนระดับโลกปรับเพิ่มน้ำหนักลงทุนในกลุ่ม AI Infrastructure & Semiconductor',
+    execSum: 'สถาบันการเงินและกองทุนขนาดใหญ่เข้าสะสมหุ้นกลุ่มเซมิคอนดักเตอร์และโครงสร้างพื้นฐาน AI ต่อเนื่องในสัปดาห์นี้',
+    ourTake: 'OUR TAKE: หุ้นกลุ่มเทคโนโลยีหลักในพอร์ตโฟลิโอของคุณได้รับแรงหนุนเชิงบวกจากกระแสเงินทุนสถาบัน',
+    type: 'Block Trade / Accumulation',
+    time: '10 นาทีที่แล้ว',
+  },
+  {
+    title: 'การหมุนเวียนกลุ่มอุตสาหกรรม (Sector Rotation) สู่ดัชนีหุ้นวงกว้าง',
+    detail: 'พบแรงขายทำกำไรในหุ้นกลุ่มพลังงานระยะสั้นเพื่อเปลี่ยนเข้าสะสม ETF ดัชนีหลักอย่าง S&P 500 และ NASDAQ 100',
+    ourTake: 'OUR TAKE: การกระจายความเสี่ยงสู่ ETF ดัชนีหลักช่วยลดความผันผวนของพอร์ตในช่วงผลประกอบการออก',
+    type: 'Institutional Flow',
+    time: '45 นาทีที่แล้ว',
 const WATCHLIST_SAMPLE = [
   { symbol: 'SPY', name: 'SPDR S&P 500 ETF Trust', price: '$581.50', change: '+0.41%', isUp: true, type: 'ETF' },
   { symbol: 'QQQ', name: 'Invesco QQQ Trust Series 1', price: '$492.30', change: '+0.63%', isUp: true, type: 'ETF' },
@@ -140,19 +161,19 @@ export function DashboardShell({
   readErrorDetail,
 }: DashboardShellProps) {
   const [dialog, setDialog] = useState<OpenDialog>({ kind: 'none' });
-  const [activeTab, setActiveTab] = useState<DashboardTab>('holdings');
   const [isAiDrawerOpen, setIsAiDrawerOpen] = useState<boolean>(true);
+  const [selectedDeepDiveSymbol, setSelectedDeepDiveSymbol] = useState<string>('NVDA');
 
   const close = () => setDialog({ kind: 'none' });
   const currency = selectedPortfolio?.base_currency ?? 'USD';
 
-  const handleGlobalSelectSymbol = (_item: MarketSymbolResult) => {
-    setDialog({ kind: 'transaction' });
+  const handleGlobalSelectSymbol = (item: MarketSymbolResult) => {
+    setSelectedDeepDiveSymbol(item.symbol);
   };
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 font-sans">
-      {/* 1. Market Ticker Header Bar */}
+      {/* 1. Real-time Market Ticker Header */}
       <div className="border-b border-slate-800 bg-slate-900/90 text-xs text-slate-300 backdrop-blur sticky top-0 z-20">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-1.5">
           <div className="flex items-center gap-4 overflow-x-auto py-0.5 no-scrollbar">
@@ -180,23 +201,18 @@ export function DashboardShell({
           </div>
 
           <div className="hidden md:flex items-center gap-3 shrink-0 text-slate-400">
-            <span>InvestAI Navigator</span>
-            <span className="text-slate-700">•</span>
-            <span>Trade Only Terminal</span>
+            <span>InvestAI Analytics Terminal</span>
           </div>
         </div>
       </div>
 
-      <main className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-6">
-        {/* Top Header & Global Market Search */}
+      <main className="mx-auto flex w-full max-w-7xl flex-col gap-8 px-4 py-6">
+        {/* Top Header & US Market Search Bar */}
         <header className="flex flex-col gap-4">
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
               <h1 className="text-2xl font-bold tracking-tight text-white sm:text-3xl flex items-center gap-2">
-                InvestAI Navigator
-                <span className="rounded bg-brand-500/20 text-brand-300 px-2 py-0.5 text-xs font-semibold uppercase tracking-wider border border-brand-500/30">
-                  Trade Only
-                </span>
+                AI Portfolio Analytics & Insights
               </h1>
               <p className="mt-1 text-sm text-slate-400">
                 เข้าสู่ระบบในชื่อ <span className="font-medium text-slate-200">{userLabel}</span>
@@ -394,97 +410,77 @@ export function DashboardShell({
               </div>
             </div>
 
-            {activeTab === 'holdings' ? (
-              <>
-                <section className="flex flex-col gap-3">
-                  <PositionsTable
-                    positions={positions}
-                    currency={currency}
-                    onEdit={(assetId) => setDialog({ kind: 'asset-form', assetId })}
-                    onDelete={(assetId) => setDialog({ kind: 'delete-asset', assetId })}
-                  />
-                </section>
+            <PositionsTable
+              positions={positions}
+              currency={currency}
+              onEdit={(assetId) => setDialog({ kind: 'asset-form', assetId })}
+              onDelete={(assetId) => setDialog({ kind: 'delete-asset', assetId })}
+            />
 
-                <section className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-                  <AllocationList
-                    title="สัดส่วนตามประเภททรัพย์สิน"
-                    slices={typeAllocation}
-                    currency={currency}
-                  />
-                  <AllocationList
-                    title="สัดส่วนตามกลุ่มอุตสาหกรรม"
-                    slices={sectorAllocation}
-                    currency={currency}
-                  />
-                </section>
+            <section className="grid grid-cols-1 gap-4 lg:grid-cols-2 mt-2">
+              <AllocationList
+                title="สัดส่วนตามประเภททรัพย์สิน"
+                slices={typeAllocation}
+                currency={currency}
+              />
+              <AllocationList
+                title="สัดส่วนตามกลุ่มอุตสาหกรรม"
+                slices={sectorAllocation}
+                currency={currency}
+              />
+            </section>
 
-                <section className="flex flex-col gap-3">
-                  <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-400">
-                    รายการเทรดล่าสุด (BUY / SELL)
-                  </h2>
+            <section className="flex flex-col gap-3 mt-2">
+              <h3 className="text-sm font-bold uppercase tracking-wider text-slate-400">
+                ประวัติรายการเคลื่อนไหว (BUY / SELL)
+              </h3>
+              <ActivityFeed
+                transactions={transactions}
+                currency={currency}
+                emptyHint="เริ่มบันทึกรายการเพื่อสร้างประวัติการลงทุน"
+              />
+            </section>
+          </div>
+        </section>
 
-                  <ActivityFeed
-                    transactions={transactions}
-                    currency={currency}
-                    emptyHint="เริ่มจากเพิ่มหลักทรัพย์และบันทึกรายการซื้อ/ขายในพอร์ตโฟลิโอของคุณ"
-                  />
-                </section>
-              </>
-            ) : (
-              /* Watchlist Section */
-              <section className="rounded-xl border border-slate-800 bg-slate-900 overflow-hidden">
-                <div className="p-4 border-b border-slate-800 flex items-center justify-between">
-                  <h3 className="font-semibold text-slate-200">US Stocks & ETFs Watchlist</h3>
-                  <span className="text-xs text-slate-400">ราคาตลาดโดยประมาณ</span>
-                </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-sm">
-                    <thead className="border-b border-slate-800 text-xs uppercase tracking-wider text-slate-400 bg-slate-950/50">
-                      <tr>
-                        <th className="px-4 py-3">สัญลักษณ์</th>
-                        <th className="px-4 py-3">ชื่อหลักทรัพย์</th>
-                        <th className="px-4 py-3">ประเภท</th>
-                        <th className="px-4 py-3 text-right">ราคา</th>
-                        <th className="px-4 py-3 text-right">เปลี่ยนแปลง (24 ชม.)</th>
-                        <th className="px-4 py-3 text-right">แอ็กชัน</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-800">
-                      {WATCHLIST_SAMPLE.map((item) => (
-                        <tr key={item.symbol} className="hover:bg-slate-800/40">
-                          <td className="px-4 py-3 font-semibold text-slate-100">{item.symbol}</td>
-                          <td className="px-4 py-3 text-slate-300 text-xs">{item.name}</td>
-                          <td className="px-4 py-3 text-xs text-slate-400">
-                            <span className="rounded bg-slate-800 px-2 py-0.5">{item.type}</span>
-                          </td>
-                          <td className="px-4 py-3 text-right font-medium tabular-nums text-slate-200">
-                            {item.price}
-                          </td>
-                          <td
-                            className={`px-4 py-3 text-right font-semibold tabular-nums text-xs ${
-                              item.isUp ? 'text-emerald-400' : 'text-red-400'
-                            }`}
-                          >
-                            {item.change}
-                          </td>
-                          <td className="px-4 py-3 text-right">
-                            <button
-                              type="button"
-                              onClick={() => setDialog({ kind: 'transaction' })}
-                              className="rounded border border-brand-500/40 bg-brand-500/10 px-2.5 py-1 text-xs font-medium text-brand-300 hover:bg-brand-500 hover:text-white transition-colors"
-                            >
-                              ส่งคำสั่งเทรด
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </section>
-            )}
-          </>
-        )}
+        {/* SECTION 4: Collapsible AI Advisor Drawer */}
+        {isAiDrawerOpen ? (
+          <aside className="rounded-xl border border-brand-500/30 bg-slate-900 p-5">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+              <div className="flex items-center gap-2">
+                <BrainCircuit className="h-5 w-5 text-brand-400" />
+                <h3 className="font-bold text-slate-100">Section 4: Active AI Portfolio Advisor Panel</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsAiDrawerOpen(false)}
+                className="text-xs text-slate-400 hover:text-slate-200"
+              >
+                ปิดที่ปรึกษา AI
+              </button>
+            </div>
+            <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4 text-xs text-slate-300">
+              <div className="rounded-lg border border-slate-800 bg-slate-950 p-3.5">
+                <p className="font-bold text-slate-200">สัดส่วนการลงทุนกระจายตัวสอดคล้องกับดัชนี</p>
+                <p className="mt-1 text-slate-400 leading-relaxed">
+                  สินทรัพย์ส่วนใหญ่เน้นหุ้นกลุ่มเติบโต แนะนำรักษาวินัยการลงทุนระยะยาว
+                </p>
+              </div>
+              <div className="rounded-lg border border-slate-800 bg-slate-950 p-3.5">
+                <p className="font-bold text-slate-200">ไม่มีภาระความเสี่ยงจากเลเวอเรจ</p>
+                <p className="mt-1 text-slate-400 leading-relaxed">
+                  พอร์ตการลงทุนเป็นรูปแบบถือครองจริง ไม่มีสัญญาอนุพันธ์ที่มีความเสี่ยงสูง
+                </p>
+              </div>
+              <div className="rounded-lg border border-slate-800 bg-slate-950 p-3.5">
+                <p className="font-bold text-slate-200">คำเตือนข้อตกลง AI</p>
+                <p className="mt-1 text-slate-400 leading-relaxed">
+                  ผลวิเคราะห์ประมวลผลโดย AI ไม่ใช่คำแนะนำทางการเงิน (Not Financial Advice)
+                </p>
+              </div>
+            </div>
+          </aside>
+        ) : null}
 
         <footer className="mt-auto pt-6 text-center text-xs text-slate-500">
           ผลวิเคราะห์ประมวลผลโดย AI ไม่ใช่คำแนะนำทางการเงิน (Not Financial Advice)
@@ -637,96 +633,6 @@ function ToolbarButton({
       {icon}
       {label}
     </button>
-  );
-}
-
-interface ToolbarProps {
-  portfolioName: string;
-  onRecordTrade: () => void;
-  onAddAsset: () => void;
-  onToggleAiDrawer: () => void;
-  isAiDrawerOpen: boolean;
-}
-
-function Toolbar({
-  portfolioName,
-  onRecordTrade,
-  onAddAsset,
-  onToggleAiDrawer,
-  isAiDrawerOpen,
-}: ToolbarProps) {
-  return (
-    <section
-      aria-label={`การจัดการพอร์ตโฟลิโอ ${portfolioName}`}
-      className="flex flex-col gap-3 rounded-xl border border-slate-800 bg-slate-900 p-4"
-    >
-      <div className="flex items-center justify-between">
-        <p className="text-sm font-semibold text-slate-200">{portfolioName}</p>
-        <button
-          type="button"
-          onClick={onToggleAiDrawer}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-brand-500/30 bg-brand-500/10 px-3 py-1.5 text-xs font-medium text-brand-300 hover:bg-brand-500/20 transition-colors"
-        >
-          <Sparkles className="h-3.5 w-3.5" />
-          {isAiDrawerOpen ? 'ซ่อนที่ปรึกษา AI' : 'เปิดที่ปรึกษา AI'}
-          {isAiDrawerOpen ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-        </button>
-      </div>
-
-      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-        <button
-          type="button"
-          onClick={onRecordTrade}
-          className="inline-flex items-center justify-center gap-2 rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-700"
-        >
-          <ArrowLeftRight aria-hidden="true" className="h-4 w-4" />
-          บันทึกรายการซื้อ / ขาย (BUY & SELL)
-        </button>
-
-        <button
-          type="button"
-          onClick={onAddAsset}
-          className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-800 bg-slate-900 px-4 py-2.5 text-sm font-medium text-slate-200 transition-colors hover:border-slate-700"
-        >
-          <Plus aria-hidden="true" className="h-4 w-4" />
-          เพิ่มหลักทรัพย์ใหม่
-        </button>
-      </div>
-    </section>
-  );
-}
-
-interface EmptyStateProps {
-  hasPortfolios: boolean;
-  onCreatePortfolio: () => void;
-}
-
-function EmptyState({
-  hasPortfolios,
-  onCreatePortfolio,
-}: EmptyStateProps) {
-  return (
-    <section className="rounded-xl border border-dashed border-slate-800 bg-slate-900 p-8 text-center">
-      <h2 className="text-base font-semibold text-slate-100">
-        {hasPortfolios ? 'เลือกพอร์ตโฟลิโอเพื่อเริ่ม' : 'ยังไม่มีพอร์ตโฟลิโอ'}
-      </h2>
-      <p className="mx-auto mt-2 max-w-md text-sm text-slate-400">
-        {hasPortfolios
-          ? 'เลือกพอร์ตโฟลิโอจากเมนูด้านบน แล้วเริ่มบันทึกรายการซื้อ/ขายได้เลย'
-          : 'สร้างพอร์ตโฟลิโอแรกของคุณ แล้วคุณจะสามารถเพิ่มหลักทรัพย์และติดตามผลตอบแทนได้'}
-      </p>
-
-      {hasPortfolios ? null : (
-        <button
-          type="button"
-          onClick={onCreatePortfolio}
-          className="mt-5 inline-flex items-center justify-center gap-2 rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-700"
-        >
-          <Plus aria-hidden="true" className="h-4 w-4" />
-          สร้างพอร์ตโฟลิโอ
-        </button>
-      )}
-    </section>
   );
 }
 

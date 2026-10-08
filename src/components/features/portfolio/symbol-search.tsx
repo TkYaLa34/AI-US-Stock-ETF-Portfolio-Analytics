@@ -145,7 +145,7 @@ export function SymbolSearch({
               ไม่พบหลักทรัพย์ที่ตรงกับ &quot;{query}&quot;
             </div>
           ) : (
-            results.map((item) => (
+            filteredResults.map((item) => (
               <button
                 key={`${item.symbol}-${item.exchange}`}
                 type="button"
