@@ -57,15 +57,6 @@ export const TRADE_TYPE_LABELS: Record<TradeType, string> = {
   SELL: 'ขาย',
 };
 
-/** The subset of transactions_type_allowed that only moves cash. */
-export const CASH_TYPES = ['DEPOSIT', 'WITHDRAWAL'] as const;
-export type CashType = (typeof CASH_TYPES)[number];
-
-export const CASH_TYPE_LABELS: Record<CashType, string> = {
-  DEPOSIT: 'ฝากเงินเข้า',
-  WITHDRAWAL: 'ถอนเงินออก',
-};
-
 /** Every column value that is an ISO-4217 code must match this. */
 export const CURRENCY_PATTERN = /^[A-Z]{3}$/;
 
@@ -217,19 +208,3 @@ export interface TransactionListItem {
   assetName: string | null;
 }
 
-/**
- * True when a ledger row is a cash movement rather than a trade.
- *
- * Pure and dependency free, so the activity feed can branch on it in the browser
- * without the row ever going back to the database. The two literals are the
- * cash-only members of the transactions_type_allowed CHECK constraint; the
- * activity feed relies on this to avoid labelling a DEPOSIT as a "ซื้อ".
- */
-export function isCashTransaction(
-  transaction: Pick<TransactionListItem, 'transaction_type'>,
-): boolean {
-  return (
-    transaction.transaction_type === 'DEPOSIT' ||
-    transaction.transaction_type === 'WITHDRAWAL'
-  );
-}

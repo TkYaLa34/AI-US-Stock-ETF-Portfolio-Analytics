@@ -9,11 +9,7 @@
  *   npx supabase gen types typescript --project-id <project-ref> --schema public
  * then paste the output over this file.
  *
- * Source of truth per table:
- *   portfolios, assets, transactions
- *     -> 20260925000100_create_core_schema.sql
- *   ai_analysis_cache
- *     -> 20260925000300_create_ai_analysis_cache.sql
+ * Source of truth: `supabase/migrations/20260925000000_init_schema_and_functions.sql`
  *
  * Postgres NUMERIC columns are typed as `number`. supabase-js parses them to
  * JS numbers; the values here are far below Number.MAX_SAFE_INTEGER, so this is
@@ -99,7 +95,6 @@ export interface AssetsInsert {
 
 export type AssetsUpdate = Partial<AssetsInsert>;
 
-
 export interface TransactionsRow {
   id: string;
   portfolio_id: string;
@@ -171,17 +166,6 @@ export interface AiAnalysisCacheInsert {
 
 export type AiAnalysisCacheUpdate = Partial<AiAnalysisCacheInsert>;
 
-/**
- * The shape `supabase-js` is parameterised with.
- *
- * `Enums` and `CompositeTypes` are empty: every business rule is enforced with
- * CHECK constraints, so the app never selects an enum type.
- *
- * `Functions` lists the three write paths added in Phase 3. They are
- * `security invoker` plpgsql functions, so RLS still applies to the statements
- * inside them and they are not an escape hatch around the policies. See
- * 20260926000100_create_portfolio_functions.sql for the error SQLSTATEs.
- */
 export interface Database {
   public: {
     Tables: {
@@ -278,13 +262,6 @@ export interface Database {
     Enums: Record<string, never>;
     CompositeTypes: Record<string, never>;
 
-    /**
-     * Defined in 20260926000100_create_portfolio_functions.sql.
-     *
-     * All three are `security invoker`, so the RLS policies still govern every
-     * statement they run. They exist to make multi-table writes atomic, not to
-     * bypass authorisation.
-     */
     Functions: {
       /** Appends a BUY/SELL and re-derives quantity, average_cost and cash. */
       record_trade: {
@@ -300,16 +277,6 @@ export interface Database {
         };
         Returns: string;
       };
-      /** Appends a DEPOSIT/WITHDRAWAL and moves cash_balance. */
-      record_cash_movement: {
-        Args: {
-          p_portfolio_id: string;
-          p_transaction_type: string;
-          p_amount: number;
-          p_notes?: string;
-        };
-        Returns: string;
-      };
       /** Moves the is_default flag, honouring the partial unique index. */
       set_default_portfolio: {
         Args: { p_portfolio_id: string };
@@ -318,4 +285,3 @@ export interface Database {
     };
   };
 }
-

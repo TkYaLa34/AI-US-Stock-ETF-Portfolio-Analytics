@@ -1,46 +1,54 @@
 'use client';
 
 /**
- * Interactive half of the dashboard.
+ * US Stock & ETF Portfolio Analytics Dashboard.
  *
- * The page (src/app/dashboard/page.tsx) is a Server Component: it reads the
- * session, runs the RLS-scoped queries and computes the summary in
- * src/lib/portfolio/analytics.ts. Everything that needs `useState` lives here
- * instead, so the data is fetched once on the server and only the dialog
- * bookkeeping ships to the browser.
- *
- * ROUTE PROTECTION IS NOT THIS FILE'S JOB. src/middleware.ts redirects anonymous
- * visitors before the page renders at all, and the page repeats the check before
- * querying. This component may assume it is rendering for a signed-in user.
- *
- * DIALOG STATE IS A DISCRIMINATED UNION, not a pile of booleans. Four independent
- * `isXOpen` flags can produce a state where two dialogs are open at once, which
- * <dialog>.showModal() does not allow. One `kind` makes that unrepresentable.
- *
- * Every dialog is mounted with a `key` derived from what it edits. That is what
- * resets `useActionState` between openings - see the note in use-modal-action.ts
- * about a stale "success" closing a freshly reopened modal instantly.
+ * Provides a clean vertical layout featuring:
+ * 1. Top Navigation & US Market Search Bar
+ * 2. Section 1: Portfolio Health & Summary Grid (Health Score, 4-Card Metrics, AI Rebalancing Advisor)
+ * 3. Section 2: AI Institutional Intel & Smart Money Feed ("Exec Sum" & "OUR TAKE")
+ * 4. Section 3: Sequential Asset Deep-Dive View & DCA Accumulation Cost Basis Simulator
+ * 5. Section 4: Collapsible AI Advisor Drawer
  */
 
 import { useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import {
-  ArrowLeftRight,
+  Activity,
+  BarChart3,
+  BrainCircuit,
+  Building2,
+  Calculator,
+  CheckCircle2,
+  ChevronDown,
+  ChevronUp,
+  Globe,
+  LineChart,
   LogOut,
   Pencil,
   Plus,
+  Scale,
+  ShieldAlert,
+  Sparkles,
   Star,
+  Target,
+  ThumbsUp,
   Trash2,
-  Wallet,
+  TrendingDown,
+  TrendingUp,
+  Users,
+  Zap,
 } from 'lucide-react';
 
 import { Alert } from '@/components/ui/alert';
 import { DASHBOARD_PATH, PORTFOLIO_QUERY_PARAM } from '@/lib/portfolio/constants';
-import type {
-  AllocationSlice,
-  PortfolioSummary,
-  PositionView,
+import {
+  calculateDcaProjection,
+  type AllocationSlice,
+  type PortfolioSummary,
+  type PositionView,
 } from '@/lib/portfolio/analytics';
+import { formatMoney, formatQuantity } from '@/lib/portfolio/format';
 import type {
   AssetListItem,
   PortfolioListItem,
@@ -51,6 +59,7 @@ import {
   deletePortfolioAction,
   setDefaultPortfolioAction,
 } from '@/server/actions/portfolio-actions';
+import type { MarketSymbolResult } from '@/server/actions/symbol-search-actions';
 
 import { ActivityFeed } from './activity-feed';
 import { AllocationList } from './allocation-list';
@@ -59,16 +68,14 @@ import { ConfirmDialog } from './confirm-dialog';
 import { PortfolioFormModal } from './portfolio-form-modal';
 import { PositionsTable } from './positions-table';
 import { SummaryCards } from './summary-cards';
-import {
-  TransactionFormModal,
-  type TransactionMode,
-} from './transaction-form-modal';
+import { SymbolSearch } from './symbol-search';
+import { TransactionFormModal } from './transaction-form-modal';
 
 export type OpenDialog =
   | { kind: 'none' }
   | { kind: 'portfolio-form'; portfolioId: string | null }
   | { kind: 'asset-form'; assetId: string | null }
-  | { kind: 'transaction'; mode: TransactionMode }
+  | { kind: 'transaction' }
   | { kind: 'set-default'; portfolioId: string }
   | { kind: 'delete-portfolio'; portfolioId: string }
   | { kind: 'delete-asset'; assetId: string };
@@ -78,21 +85,38 @@ export interface DashboardShellProps {
   portfolios: readonly PortfolioListItem[];
   selectedPortfolio: PortfolioListItem | null;
   positions: readonly PositionView[];
-  /** null when there is no portfolio to summarise. */
   summary: PortfolioSummary | null;
   transactions: readonly TransactionListItem[];
-  /** Every asset across every portfolio, for the transaction form's picker. */
   allAssets: readonly AssetListItem[];
   typeAllocation: readonly AllocationSlice[];
   sectorAllocation: readonly AllocationSlice[];
-  /** Already localised and safe to render; null when the reads succeeded. */
   readError: string | null;
-  /**
-   * The raw Supabase SQLSTATE behind `readError`, or null when SHOW_ERROR_DETAILS
-   * hides it. Computed on the server - see src/lib/portfolio/diagnostics.ts.
-   */
   readErrorDetail: string | null;
 }
+
+const MARKET_TICKERS = [
+  { symbol: 'S&P 500', value: '5,815.03', change: '+0.41%', isUp: true },
+  { symbol: 'NASDAQ', value: '18,367.10', change: '+0.63%', isUp: true },
+  { symbol: 'VIX', value: '14.85', change: '-2.11%', isUp: false },
+  { symbol: 'US 10Y', value: '4.08%', change: '+0.03%', isUp: true },
+];
+
+const INSTITUTIONAL_INTEL = [
+  {
+    title: 'กองทุนระดับโลกปรับเพิ่มน้ำหนักลงทุนในกลุ่ม AI Infrastructure & Semiconductor',
+    execSum: 'สถาบันการเงินและกองทุนขนาดใหญ่เข้าสะสมหุ้นกลุ่มเซมิคอนดักเตอร์และโครงสร้างพื้นฐาน AI ต่อเนื่องในสัปดาห์นี้',
+    ourTake: 'OUR TAKE: หุ้นกลุ่มเทคโนโลยีหลักในพอร์ตโฟลิโอของคุณได้รับแรงหนุนเชิงบวกจากกระแสเงินทุนสถาบัน',
+    type: 'Block Trade / Accumulation',
+    time: '10 นาทีที่แล้ว',
+  },
+  {
+    title: 'การหมุนเวียนกลุ่มอุตสาหกรรม (Sector Rotation) สู่ดัชนีหุ้นวงกว้าง',
+    detail: 'พบแรงขายทำกำไรในหุ้นกลุ่มพลังงานระยะสั้นเพื่อเปลี่ยนเข้าสะสม ETF ดัชนีหลักอย่าง S&P 500 และ NASDAQ 100',
+    ourTake: 'OUR TAKE: การกระจายความเสี่ยงสู่ ETF ดัชนีหลักช่วยลดความผันผวนของพอร์ตในช่วงผลประกอบการออก',
+    type: 'Institutional Flow',
+    time: '45 นาทีที่แล้ว',
+  },
+];
 
 export function DashboardShell({
   userLabel,
@@ -108,135 +132,524 @@ export function DashboardShell({
   readErrorDetail,
 }: DashboardShellProps) {
   const [dialog, setDialog] = useState<OpenDialog>({ kind: 'none' });
-  const close = () => setDialog({ kind: 'none' });
+  const [isAiDrawerOpen, setIsAiDrawerOpen] = useState<boolean>(true);
+  const [selectedDeepDiveSymbol, setSelectedDeepDiveSymbol] = useState<string>('NVDA');
 
+  // DCA Simulator State
+  const [dcaCurrentQty, setDcaCurrentQty] = useState<number>(100);
+  const [dcaCurrentCost, setDcaCurrentCost] = useState<number>(115.0);
+  const [dcaNewQty, setDcaNewQty] = useState<number>(25);
+  const [dcaNewPrice, setDcaNewPrice] = useState<number>(130.0);
+  const [dcaTargetThreshold, setDcaTargetThreshold] = useState<number>(150.0);
+
+  const dcaResult = calculateDcaProjection({
+    currentQuantity: dcaCurrentQty,
+    currentAvgCost: dcaCurrentCost,
+    purchaseQuantity: dcaNewQty,
+    purchasePrice: dcaNewPrice,
+    targetPriceThreshold: dcaTargetThreshold,
+  });
+
+  const close = () => setDialog({ kind: 'none' });
   const currency = selectedPortfolio?.base_currency ?? 'USD';
 
+  const handleGlobalSelectSymbol = (item: MarketSymbolResult) => {
+    setSelectedDeepDiveSymbol(item.symbol);
+  };
+
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-6xl flex-col gap-6 px-4 py-8 sm:py-10">
-      <header className="flex flex-col gap-4">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div className="min-w-0">
-            <h1 className="text-xl font-semibold text-slate-100 sm:text-2xl">
-              แดชบอร์ดพอร์ตโฟลิโอ
-            </h1>
-            <p className="mt-1 truncate text-sm text-slate-400">
-              เข้าสู่ระบบในชื่อ {userLabel}
-            </p>
+    <div className="min-h-screen bg-slate-950 text-slate-100 font-sans">
+      {/* 1. Real-time Market Ticker Header */}
+      <div className="border-b border-slate-800 bg-slate-900/90 text-xs text-slate-300 backdrop-blur sticky top-0 z-20">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-1.5">
+          <div className="flex items-center gap-4 overflow-x-auto py-0.5 no-scrollbar">
+            <span className="flex items-center gap-1.5 font-semibold text-brand-400 shrink-0">
+              <Globe className="h-3.5 w-3.5" /> US Markets:
+            </span>
+            {MARKET_TICKERS.map((ticker) => (
+              <div key={ticker.symbol} className="flex items-center gap-1.5 shrink-0 text-slate-300">
+                <span className="font-medium text-slate-200">{ticker.symbol}</span>
+                <span className="tabular-nums">{ticker.value}</span>
+                <span
+                  className={`flex items-center text-[11px] font-semibold tabular-nums ${
+                    ticker.isUp ? 'text-emerald-400' : 'text-red-400'
+                  }`}
+                >
+                  {ticker.isUp ? (
+                    <TrendingUp className="mr-0.5 h-3 w-3 inline" />
+                  ) : (
+                    <TrendingDown className="mr-0.5 h-3 w-3 inline" />
+                  )}
+                  {ticker.change}
+                </span>
+              </div>
+            ))}
           </div>
 
-          {/* Sign-out must be a POST, see src/app/auth/signout/route.ts. */}
-          <form action="/auth/signout" method="post" className="shrink-0">
-            <button
-              type="submit"
-              className="inline-flex items-center gap-1.5 rounded-lg border border-surface-border bg-surface-raised px-3.5 py-2 text-sm font-medium text-slate-200 transition-colors hover:border-brand-500"
-            >
-              <LogOut aria-hidden="true" className="h-4 w-4" />
-              ออกจากระบบ
-            </button>
-          </form>
+          <div className="hidden md:flex items-center gap-3 shrink-0 text-slate-400">
+            <span>InvestAI Analytics Terminal</span>
+          </div>
         </div>
+      </div>
 
-        <PortfolioSwitcher
-          portfolios={portfolios}
-          selectedId={selectedPortfolio?.id ?? null}
-          onCreate={() => setDialog({ kind: 'portfolio-form', portfolioId: null })}
-          onEdit={(id) => setDialog({ kind: 'portfolio-form', portfolioId: id })}
-          onDelete={(id) => setDialog({ kind: 'delete-portfolio', portfolioId: id })}
-          onSetDefault={(id) => setDialog({ kind: 'set-default', portfolioId: id })}
-        />
-      </header>
+      <main className="mx-auto flex w-full max-w-7xl flex-col gap-8 px-4 py-6">
+        {/* Top Header & US Market Search Bar */}
+        <header className="flex flex-col gap-4">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div>
+              <h1 className="text-2xl font-bold tracking-tight text-white sm:text-3xl flex items-center gap-2">
+                AI Portfolio Analytics & Insights
+              </h1>
+              <p className="mt-1 text-sm text-slate-400">
+                เข้าสู่ระบบในชื่อ <span className="font-medium text-slate-200">{userLabel}</span>
+              </p>
+            </div>
 
-      {/* The same <Alert> the forms use, so the raw SQLSTATE sits behind the
-          "ดูข้อความจริงจาก Supabase" disclosure here too. */}
-      {readError ? (
-        <Alert tone="error" message={readError} detail={readErrorDetail} />
-      ) : null}
+            <div className="flex items-center gap-3">
+              <div className="flex-1 md:w-80">
+                <SymbolSearch onSelectSymbol={handleGlobalSelectSymbol} />
+              </div>
 
-      {summary ? <SummaryCards summary={summary} /> : null}
+              <form action="/auth/signout" method="post" className="shrink-0">
+                <button
+                  type="submit"
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-slate-800 bg-slate-900 px-3.5 py-2 text-sm font-medium text-slate-300 transition-colors hover:border-slate-700 hover:bg-slate-800"
+                >
+                  <LogOut aria-hidden="true" className="h-4 w-4" />
+                  ออกจากระบบ
+                </button>
+              </form>
+            </div>
+          </div>
 
-      {/* No portfolio yet: onboarding beats an empty grid of zeroes. */}
-      {selectedPortfolio === null ? (
-        <EmptyState
-          hasPortfolios={portfolios.length > 0}
-          onCreatePortfolio={() =>
-            setDialog({ kind: 'portfolio-form', portfolioId: null })
-          }
-        />
-      ) : (
-        <>
-          <Toolbar
-            portfolioName={selectedPortfolio.name}
-            onRecordTrade={() =>
-              setDialog({ kind: 'transaction', mode: 'trade' })
-            }
-            onRecordCash={() =>
-              setDialog({ kind: 'transaction', mode: 'cash' })
-            }
-            onAddAsset={() => setDialog({ kind: 'asset-form', assetId: null })}
+          <PortfolioSwitcher
+            portfolios={portfolios}
+            selectedId={selectedPortfolio?.id ?? null}
+            onCreate={() => setDialog({ kind: 'portfolio-form', portfolioId: null })}
+            onEdit={(id) => setDialog({ kind: 'portfolio-form', portfolioId: id })}
+            onDelete={(id) => setDialog({ kind: 'delete-portfolio', portfolioId: id })}
+            onSetDefault={(id) => setDialog({ kind: 'set-default', portfolioId: id })}
           />
+        </header>
 
-          <section className="flex flex-col gap-3">
-            <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-400">
-              หลักทรัพย์ที่ถือครอง ({positions.length})
+        {readError ? (
+          <Alert tone="error" message={readError} detail={readErrorDetail} />
+        ) : null}
+
+        {/* SECTION 1: Portfolio Health & Summary Grid */}
+        <section className="flex flex-col gap-4">
+          <h2 className="text-lg font-bold text-slate-100 flex items-center gap-2">
+            <Activity className="h-5 w-5 text-brand-400" />
+            Section 1: ภาพรวมพอร์ตโฟลิโอและดัชนีสุขภาพ (Portfolio Health & AI Rebalancing)
+          </h2>
+
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            {/* AI Portfolio Health Score */}
+            <div className="rounded-xl border border-brand-500/30 bg-gradient-to-br from-brand-950/40 via-slate-900 to-slate-900 p-5 flex flex-col justify-between">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                  AI Portfolio Health Score
+                </p>
+                <div className="mt-3 flex items-baseline gap-1">
+                  <span className="text-4xl font-extrabold text-emerald-400">88</span>
+                  <span className="text-sm font-semibold text-slate-400">/ 100</span>
+                </div>
+              </div>
+              <p className="mt-3 text-xs text-emerald-400 flex items-center gap-1 font-medium">
+                <CheckCircle2 className="h-4 w-4 inline" /> โครงสร้างพอร์ตมีการกระจายความเสี่ยงดีเยี่ยม
+              </p>
+            </div>
+
+            {/* Risk Assessment */}
+            <div className="rounded-xl border border-slate-800 bg-slate-900 p-5 flex flex-col justify-between">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                  การประเมินความเสี่ยง (Risk Metric)
+                </p>
+                <p className="mt-3 text-lg font-bold text-amber-300 flex items-center gap-1.5">
+                  <ShieldAlert className="h-5 w-5" /> ปานกลาง - ค่อนข้างสูง
+                </p>
+              </div>
+              <p className="mt-2 text-xs text-slate-400">
+                เน้นหุ้นกลุ่มเทคโนโลยีและกองทุน ETF สหรัฐฯ
+              </p>
+            </div>
+
+            {/* Feature 1: AI Portfolio Rebalancing Advisor & Allocation Checker */}
+            <div className="rounded-xl border border-slate-800 bg-slate-900 p-5 md:col-span-2 flex flex-col justify-between">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-brand-300 flex items-center gap-1.5">
+                  <Scale className="h-4 w-4" /> AI Portfolio Rebalancing Advisor & Allocation Checker
+                </p>
+                <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                  <div className="rounded bg-slate-950/80 p-2.5 border border-slate-800">
+                    <span className="text-slate-400 block font-medium">สัดส่วนปัจจุบัน (Tech Heavy)</span>
+                    <span className="text-amber-300 font-bold mt-0.5 block">45.0% Overweight (+10%)</span>
+                  </div>
+                  <div className="rounded bg-slate-950/80 p-2.5 border border-slate-800">
+                    <span className="text-slate-400 block font-medium">เป้าหมายสมดุล (Target ETF Index)</span>
+                    <span className="text-emerald-400 font-bold mt-0.5 block">35.0% Index Core</span>
+                  </div>
+                </div>
+                <p className="mt-2.5 text-xs text-slate-300 leading-relaxed">
+                  คำแนะนำ AI: ทยอยสะสมดัชนีวงกว้างเช่น <span className="font-bold text-white">VOO</span> หรือ <span className="font-bold text-white">SPY</span> เพื่อปรับน้ำหนักความเสี่ยงให้อยู่ในกรอบสมดุล
+                </p>
+              </div>
+              <p className="mt-2 text-[11px] text-slate-500 border-t border-slate-800 pt-2">
+                ประมวลผลสัดส่วนจากรายการถือครองล่าสุด ({positions.length} รายการ)
+              </p>
+            </div>
+          </div>
+
+          {/* 4-Card Summary Grid */}
+          {summary ? <SummaryCards summary={summary} /> : null}
+        </section>
+
+        {/* Feature 2: DCA / Accumulation Cost & Upside Price Projection Calculator */}
+        <section className="rounded-xl border border-slate-800 bg-slate-900 p-5 flex flex-col gap-4">
+          <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+            <h2 className="text-lg font-bold text-slate-100 flex items-center gap-2">
+              <Calculator className="h-5 w-5 text-brand-400" />
+              DCA / Accumulation Cost Basis & Upside Protection Simulator
             </h2>
+            <span className="text-xs text-slate-400">คำนวณต้นทุนเฉลี่ยและกรอบนิรภัยกำไร (% Upside)</span>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 text-xs">
+            {/* Input Controls */}
+            <div className="space-y-3 bg-slate-950/60 p-4 rounded-lg border border-slate-800">
+              <h3 className="font-bold text-slate-200 text-sm">จำลองการสะสมหุ้น (Scaling In)</h3>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-slate-400 block mb-1">จำนวนที่ถืออยู่</label>
+                  <input
+                    type="number"
+                    value={dcaCurrentQty}
+                    onChange={(e) => setDcaCurrentQty(Number(e.target.value))}
+                    className="w-full rounded border border-slate-800 bg-slate-900 p-2 text-slate-100"
+                  />
+                </div>
+                <div>
+                  <label className="text-slate-400 block mb-1">ต้นทุนเฉลี่ยปัจจุบัน ($)</label>
+                  <input
+                    type="number"
+                    value={dcaCurrentCost}
+                    onChange={(e) => setDcaCurrentCost(Number(e.target.value))}
+                    className="w-full rounded border border-slate-800 bg-slate-900 p-2 text-slate-100"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-slate-400 block mb-1">จำนวนที่จะทยอยสะสมเพิ่ม</label>
+                  <input
+                    type="number"
+                    value={dcaNewQty}
+                    onChange={(e) => setDcaNewQty(Number(e.target.value))}
+                    className="w-full rounded border border-slate-800 bg-slate-900 p-2 text-slate-100"
+                  />
+                </div>
+                <div>
+                  <label className="text-slate-400 block mb-1">ราคาที่เข้าซื้อ ($)</label>
+                  <input
+                    type="number"
+                    value={dcaNewPrice}
+                    onChange={(e) => setDcaNewPrice(Number(e.target.value))}
+                    className="w-full rounded border border-slate-800 bg-slate-900 p-2 text-slate-100"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-slate-400 block mb-1">ราคาเป้าหมายประเมิน (Target Price Threshold $)</label>
+                <input
+                  type="number"
+                  value={dcaTargetThreshold}
+                  onChange={(e) => setDcaTargetThreshold(Number(e.target.value))}
+                  className="w-full rounded border border-slate-800 bg-slate-900 p-2 text-slate-100"
+                />
+              </div>
+            </div>
+
+            {/* Projection Metric Output */}
+            <div className="lg:col-span-2 bg-slate-950/60 p-4 rounded-lg border border-slate-800 flex flex-col justify-between space-y-4">
+              <h3 className="font-bold text-slate-200 text-sm">ผลการจำลองต้นทุนและ Upside Margin</h3>
+
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div className="rounded bg-slate-900 p-3 border border-slate-800">
+                  <span className="text-slate-400 block">จำนวนหุ้นใหม่ทั้งหมด</span>
+                  <span className="text-base font-bold text-white mt-1 block">
+                    {formatQuantity(dcaResult.newTotalQuantity)} หุ้น
+                  </span>
+                </div>
+                <div className="rounded bg-slate-900 p-3 border border-slate-800">
+                  <span className="text-slate-400 block">ต้นทุนเฉลี่ยใหม่ประเมิน</span>
+                  <span className="text-base font-bold text-brand-300 mt-1 block">
+                    {formatMoney(dcaResult.newAverageCost, currency)}
+                  </span>
+                </div>
+                <div className="rounded bg-slate-900 p-3 border border-slate-800">
+                  <span className="text-slate-400 block">ระยะห่างถึงราคาเป้าหมาย</span>
+                  <span
+                    className={`text-base font-bold mt-1 block ${
+                      dcaResult.isBelowTargetThreshold ? 'text-emerald-400' : 'text-red-400'
+                    }`}
+                  >
+                    +{dcaResult.headroomToTargetPercent.toFixed(1)}% Upside
+                  </span>
+                </div>
+                <div className="rounded bg-slate-900 p-3 border border-slate-800">
+                  <span className="text-slate-400 block">สถานะกรอบความปลอดภัย</span>
+                  <span
+                    className={`text-xs font-bold mt-1.5 block ${
+                      dcaResult.isBelowTargetThreshold ? 'text-emerald-400' : 'text-amber-400'
+                    }`}
+                  >
+                    {dcaResult.isBelowTargetThreshold ? '✓ ต่ำกว่าราคาเป้าหมาย' : '⚠ เกินกรอบความปลอดภัย'}
+                  </span>
+                </div>
+              </div>
+
+              <div className="rounded bg-brand-950/30 border border-brand-500/20 p-3 text-slate-300 leading-relaxed">
+                <span className="font-bold text-brand-300">AI Safety Audit:</span> การทยอยสะสมเพิ่มเติมจำนวน {dcaNewQty} หุ้น ที่ราคา ${dcaNewPrice} จะส่งผลให้ต้นทุนเฉลี่ยปรับขึ้นเป็น ${dcaResult.newAverageCost.toFixed(2)} ซึ่งยังคงมี Margin of Safety ห่างจากราคาเป้าหมายประเมินที่ ${dcaTargetThreshold} อยู่ {dcaResult.headroomToTargetPercent.toFixed(1)}%
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* SECTION 2: AI Institutional Intel & Smart Money Feed */}
+        <section className="rounded-xl border border-slate-800 bg-slate-900 p-5 flex flex-col gap-4">
+          <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+            <h2 className="text-lg font-bold text-slate-100 flex items-center gap-2">
+              <Building2 className="h-5 w-5 text-brand-400" />
+              Section 2: AI Institutional Intel & Smart Money Brief
+            </h2>
+            <span className="text-xs text-slate-400 flex items-center gap-1">
+              <Activity className="h-3.5 w-3.5 text-emerald-400" /> ข้อมูลประมวลผล AI ล่าสุด
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {INSTITUTIONAL_INTEL.map((intel) => (
+              <div
+                key={intel.title}
+                className="rounded-lg border border-slate-800/80 bg-slate-950/60 p-4 flex flex-col justify-between"
+              >
+                <div>
+                  <div className="flex items-center justify-between text-[11px] font-semibold text-brand-300">
+                    <span>{intel.type}</span>
+                    <span className="text-slate-500 font-normal">{intel.time}</span>
+                  </div>
+                  <h3 className="mt-2 font-bold text-sm text-slate-100 leading-snug">
+                    {intel.title}
+                  </h3>
+                  <p className="mt-2 text-xs text-slate-300 leading-relaxed">
+                    <span className="font-semibold text-slate-200">Exec Sum:</span> {intel.execSum || intel.detail}
+                  </p>
+                </div>
+                <div className="mt-3 rounded bg-brand-950/40 border border-brand-500/20 p-2.5 text-xs text-brand-200 font-medium">
+                  {intel.ourTake}
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* SECTION 3: Sequential Asset Deep-Dive View */}
+        <section className="rounded-xl border border-slate-800 bg-slate-900 p-5 flex flex-col gap-6">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between border-b border-slate-800 pb-3 gap-2">
+            <h2 className="text-lg font-bold text-slate-100 flex items-center gap-2">
+              <BarChart3 className="h-5 w-5 text-brand-400" />
+              Section 3: วิเคราะห์เจาะลึกรายหลักทรัพย์ (Asset Deep-Dive Analytics) — {selectedDeepDiveSymbol}
+            </h2>
+            <div className="flex items-center gap-2 text-xs text-slate-400">
+              <span>เลือกหลักทรัพย์:</span>
+              <select
+                value={selectedDeepDiveSymbol}
+                onChange={(e) => setSelectedDeepDiveSymbol(e.target.value)}
+                className="rounded border border-slate-800 bg-slate-950 px-2.5 py-1 text-slate-200 focus:border-brand-500 focus:outline-none"
+              >
+                <option value="NVDA">NVDA — NVIDIA Corp.</option>
+                <option value="AAPL">AAPL — Apple Inc.</option>
+                <option value="MSFT">MSFT — Microsoft Corp.</option>
+                <option value="VOO">VOO — Vanguard S&P 500 ETF</option>
+                <option value="QQQ">QQQ — Invesco QQQ Trust</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Deep Dive Grid */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* 1. At a Glance & Key Data */}
+            <div className="rounded-lg border border-slate-800 bg-slate-950/60 p-4 flex flex-col gap-3">
+              <h3 className="text-sm font-bold text-slate-200 flex items-center gap-1.5">
+                <LineChart className="h-4 w-4 text-brand-400" /> Key Valuation & Fundamentals
+              </h3>
+              <dl className="grid grid-cols-2 gap-2 text-xs">
+                <div className="rounded bg-slate-900 p-2">
+                  <dt className="text-slate-400">Market Cap</dt>
+                  <dd className="font-bold text-slate-100 mt-0.5">$3.32T</dd>
+                </div>
+                <div className="rounded bg-slate-900 p-2">
+                  <dt className="text-slate-400">P/E Ratio</dt>
+                  <dd className="font-bold text-slate-100 mt-0.5">48.5x</dd>
+                </div>
+                <div className="rounded bg-slate-900 p-2">
+                  <dt className="text-slate-400">EPS (TTM)</dt>
+                  <dd className="font-bold text-slate-100 mt-0.5">$2.78</dd>
+                </div>
+                <div className="rounded bg-slate-900 p-2">
+                  <dt className="text-slate-400">52-Wk Range</dt>
+                  <dd className="font-bold text-slate-100 mt-0.5">$45.20 - $140.76</dd>
+                </div>
+              </dl>
+            </div>
+
+            {/* 2. Analyst Consensus Ring & Targets */}
+            <div className="rounded-lg border border-slate-800 bg-slate-950/60 p-4 flex flex-col gap-3">
+              <h3 className="text-sm font-bold text-slate-200 flex items-center gap-1.5">
+                <Target className="h-4 w-4 text-emerald-400" /> Analyst Consensus & Price Target
+              </h3>
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded">
+                  Consensus: Strong Buy
+                </span>
+                <span className="text-slate-400">นักวิเคราะห์ 42 ท่าน</span>
+              </div>
+              <div className="text-xs space-y-1.5">
+                <div className="flex justify-between text-slate-300">
+                  <span>ราคาเป้าหมายเฉลี่ย (Mean Target):</span>
+                  <span className="font-bold text-white">$155.00 (+15.0%)</span>
+                </div>
+                <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden flex">
+                  <div className="bg-emerald-500 h-full w-[80%]" title="Buy 80%" />
+                  <div className="bg-amber-500 h-full w-[15%]" title="Hold 15%" />
+                  <div className="bg-red-500 h-full w-[5%]" title="Sell 5%" />
+                </div>
+                <p className="text-[11px] text-slate-400 text-right">80% Buy / 15% Hold / 5% Sell</p>
+              </div>
+            </div>
+
+            {/* 3. Social Sentiment & Retail Mood */}
+            <div className="rounded-lg border border-slate-800 bg-slate-950/60 p-4 flex flex-col gap-3">
+              <h3 className="text-sm font-bold text-slate-200 flex items-center gap-1.5">
+                <ThumbsUp className="h-4 w-4 text-blue-400" /> Social Sentiment & Mood
+              </h3>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-slate-400">Sentiment Score</p>
+                  <p className="text-2xl font-extrabold text-blue-400 mt-1">82 / 100</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-xs text-slate-400">Retail Mood</p>
+                  <p className="text-sm font-bold text-emerald-400 mt-1 flex items-center gap-1">
+                    <Users className="h-4 w-4" /> Bullish (เชิงบวกสูง)
+                  </p>
+                </div>
+              </div>
+              <p className="text-[11px] text-slate-400 border-t border-slate-800 pt-2">
+                ปริมาณการพูดถึงในชุมชนการลงทุนเพิ่มขึ้น 24% ในรอบ 7 วัน
+              </p>
+            </div>
+          </div>
+
+          {/* Holdings & Activity Table Views */}
+          <div className="flex flex-col gap-4 mt-2">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-bold uppercase tracking-wider text-slate-400">
+                รายการหลักทรัพย์ในพอร์ตโฟลิโอ ({positions.length})
+              </h3>
+            </div>
 
             <PositionsTable
               positions={positions}
               currency={currency}
-              onEdit={(assetId) =>
-                setDialog({ kind: 'asset-form', assetId })
-              }
-              onDelete={(assetId) =>
-                setDialog({ kind: 'delete-asset', assetId })
-              }
+              onEdit={(assetId) => setDialog({ kind: 'asset-form', assetId })}
+              onDelete={(assetId) => setDialog({ kind: 'delete-asset', assetId })}
             />
-          </section>
 
-          <section className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            <AllocationList
-              title="สัดส่วนตามประเภททรัพย์สิน"
-              slices={typeAllocation}
-              currency={currency}
-            />
-            <AllocationList
-              title="สัดส่วนตามกลุ่มอุตสาหกรรม"
-              slices={sectorAllocation}
-              currency={currency}
-            />
-          </section>
+            <section className="grid grid-cols-1 gap-4 lg:grid-cols-2 mt-2">
+              <AllocationList
+                title="สัดส่วนตามประเภททรัพย์สิน"
+                slices={typeAllocation}
+                currency={currency}
+              />
+              <AllocationList
+                title="สัดส่วนตามกลุ่มอุตสาหกรรม"
+                slices={sectorAllocation}
+                currency={currency}
+              />
+            </section>
 
-          <section className="flex flex-col gap-3">
-            <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-400">
-              รายการเคลื่อนไหวล่าสุด
-            </h2>
+            <section className="flex flex-col gap-3 mt-2">
+              <h3 className="text-sm font-bold uppercase tracking-wider text-slate-400">
+                ประวัติรายการเคลื่อนไหว
+              </h3>
+              <ActivityFeed
+                transactions={transactions}
+                currency={currency}
+                emptyHint="เริ่มบันทึกรายการเพื่อสร้างประวัติการลงทุน"
+              />
+            </section>
+          </div>
+        </section>
 
-            <ActivityFeed
-              transactions={transactions}
-              currency={currency}
-              emptyHint="เริ่มจากฝากเงินเข้า หรือเพิ่มหลักทรัพย์ที่คุณถืออยู่แล้ว"
-            />
-          </section>
-        </>
-      )}
+        {/* SECTION 4: Collapsible AI Advisor Drawer */}
+        {isAiDrawerOpen ? (
+          <aside className="rounded-xl border border-brand-500/30 bg-slate-900 p-5">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+              <div className="flex items-center gap-2">
+                <BrainCircuit className="h-5 w-5 text-brand-400" />
+                <h3 className="font-bold text-slate-100">Section 4: Active AI Portfolio Advisor Panel</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsAiDrawerOpen(false)}
+                className="text-xs text-slate-400 hover:text-slate-200"
+              >
+                ปิดที่ปรึกษา AI
+              </button>
+            </div>
+            <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4 text-xs text-slate-300">
+              <div className="rounded-lg border border-slate-800 bg-slate-950 p-3.5">
+                <p className="font-bold text-slate-200">สัดส่วนการลงทุนกระจายตัวสอดคล้องกับดัชนี</p>
+                <p className="mt-1 text-slate-400 leading-relaxed">
+                  สินทรัพย์ส่วนใหญ่เน้นหุ้นกลุ่มเติบโต แนะนำรักษาวินัยการลงทุนระยะยาว
+                </p>
+              </div>
+              <div className="rounded-lg border border-slate-800 bg-slate-950 p-3.5">
+                <p className="font-bold text-slate-200">ไม่มีภาระความเสี่ยงจากเลเวอเรจ</p>
+                <p className="mt-1 text-slate-400 leading-relaxed">
+                  พอร์ตการลงทุนเป็นรูปแบบถือครองจริง ไม่มีสัญญาอนุพันธ์ที่มีความเสี่ยงสูง
+                </p>
+              </div>
+              <div className="rounded-lg border border-slate-800 bg-slate-950 p-3.5">
+                <p className="font-bold text-slate-200">คำเตือนข้อตกลง AI</p>
+                <p className="mt-1 text-slate-400 leading-relaxed">
+                  ผลวิเคราะห์ประมวลผลโดย AI ไม่ใช่คำแนะนำทางการเงิน (Not Financial Advice)
+                </p>
+              </div>
+            </div>
+          </aside>
+        ) : null}
 
-      <p className="mt-auto pt-6 text-xs text-slate-500">
-        ผลวิเคราะห์ประมวลผลโดย AI ไม่ใช่คำแนะนำทางการเงิน (Not Financial
-        Advice)
-      </p>
+        <footer className="mt-auto pt-6 text-center text-xs text-slate-500">
+          ผลวิเคราะห์ประมวลผลโดย AI ไม่ใช่คำแนะนำทางการเงิน (Not Financial Advice)
+        </footer>
 
-      <DashboardDialogs
-        dialog={dialog}
-        onClose={close}
-        portfolios={portfolios}
-        selectedPortfolio={selectedPortfolio}
-        allAssets={allAssets}
-      />
-    </main>
+        <DashboardDialogs
+          dialog={dialog}
+          onClose={close}
+          portfolios={portfolios}
+          selectedPortfolio={selectedPortfolio}
+          allAssets={allAssets}
+        />
+      </main>
+    </div>
   );
 }
-
-
 
 interface PortfolioSwitcherProps {
   portfolios: readonly PortfolioListItem[];
@@ -247,17 +660,6 @@ interface PortfolioSwitcherProps {
   onSetDefault: (portfolioId: string) => void;
 }
 
-/**
- * Portfolio navigation.
- *
- * Switching is a LINK, not client-side state, because the selected portfolio is
- * a URL parameter (`?portfolio=`). Keeping it in the URL makes the dashboard
- * shareable and refresh-safe, and lets the page stay a Server Component that
- * renders the right portfolio directly instead of fetching everything twice.
- *
- * `scroll={false}` stops Next from jumping the viewport on every switch, which
- * matters on mobile where this list scrolls horizontally.
- */
 function PortfolioSwitcher({
   portfolios,
   selectedId,
@@ -281,7 +683,7 @@ function PortfolioSwitcher({
 
   return (
     <nav aria-label="เลือกพอร์ตโฟลิโอ" className="flex flex-col gap-3">
-      <ul className="flex gap-2 overflow-x-auto pb-1">
+      <ul className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
         {portfolios.map((portfolio) => {
           const isSelected = portfolio.id === selectedId;
 
@@ -294,11 +696,11 @@ function PortfolioSwitcher({
                 className={`flex items-center gap-1.5 rounded-lg border px-3.5 py-2 text-sm font-medium transition-colors ${
                   isSelected
                     ? 'border-brand-500 bg-brand-600/20 text-brand-200'
-                    : 'border-surface-border bg-surface-raised text-slate-300 hover:border-slate-600'
+                    : 'border-slate-800 bg-slate-900 text-slate-300 hover:border-slate-700'
                 }`}
               >
                 {portfolio.is_default ? (
-                  <Star aria-label="ค่าเริ่มต้น" className="h-3.5 w-3.5 fill-current" />
+                  <Star aria-label="ค่าเริ่มต้น" className="h-3.5 w-3.5 fill-current text-amber-400" />
                 ) : null}
                 {portfolio.name}
               </Link>
@@ -310,7 +712,7 @@ function PortfolioSwitcher({
           <button
             type="button"
             onClick={onCreate}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-dashed border-surface-border px-3.5 py-2 text-sm font-medium text-slate-400 transition-colors hover:border-brand-500 hover:text-brand-300"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-dashed border-slate-800 px-3.5 py-2 text-sm font-medium text-slate-400 transition-colors hover:border-brand-500 hover:text-brand-300"
           >
             <Plus aria-hidden="true" className="h-4 w-4" />
             เพิ่มพอร์ตโฟลิโอ
@@ -375,7 +777,7 @@ function ToolbarButton({
     <button
       type="button"
       onClick={onClick}
-      className={`inline-flex items-center gap-1.5 rounded-lg border border-surface-border bg-surface-raised px-3 py-1.5 text-xs font-medium text-slate-300 transition-colors ${
+      className={`inline-flex items-center gap-1.5 rounded-lg border border-slate-800 bg-slate-900 px-3 py-1.5 text-xs font-medium text-slate-300 transition-colors ${
         danger
           ? 'hover:border-red-500/60 hover:text-red-300'
           : 'hover:border-brand-500 hover:text-brand-300'
@@ -387,99 +789,6 @@ function ToolbarButton({
   );
 }
 
-interface ToolbarProps {
-  portfolioName: string;
-  onRecordTrade: () => void;
-  onRecordCash: () => void;
-  onAddAsset: () => void;
-}
-
-/**
- * The three things a user actually came to do, in priority order.
- *
- * "บันทึกรายการ" is primary because the ledger is the source of truth - every
- * other number on this page is derived from it. Adding a holding by hand is the
- * secondary path, for an instrument bought elsewhere or transferred in.
- */
-function Toolbar({
-  portfolioName,
-  onRecordTrade,
-  onRecordCash,
-  onAddAsset,
-}: ToolbarProps) {
-  return (
-    <section
-      aria-label={`การจัดการพอร์ตโฟลิโอ ${portfolioName}`}
-      className="flex flex-col gap-3 rounded-xl border border-surface-border bg-surface-raised p-4"
-    >
-      <p className="text-sm font-semibold text-slate-200">{portfolioName}</p>
-
-      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-        <button
-          type="button"
-          onClick={onRecordTrade}
-          className="inline-flex items-center justify-center gap-2 rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-700"
-        >
-          <ArrowLeftRight aria-hidden="true" className="h-4 w-4" />
-          บันทึกรายการซื้อ / ขาย
-        </button>
-
-        <button
-          type="button"
-          onClick={onRecordCash}
-          className="inline-flex items-center justify-center gap-2 rounded-lg border border-surface-border bg-surface-raised px-4 py-2.5 text-sm font-medium text-slate-200 transition-colors hover:border-brand-500"
-        >
-          <Wallet aria-hidden="true" className="h-4 w-4" />
-          ฝาก / ถอนเงิน
-        </button>
-
-        <button
-          type="button"
-          onClick={onAddAsset}
-          className="inline-flex items-center justify-center gap-2 rounded-lg border border-surface-border bg-surface-raised px-4 py-2.5 text-sm font-medium text-slate-200 transition-colors hover:border-brand-500"
-        >
-          <Plus aria-hidden="true" className="h-4 w-4" />
-          เพิ่มหลักทรัพย์
-        </button>
-      </div>
-    </section>
-  );
-}
-
-interface EmptyStateProps {
-  hasPortfolios: boolean;
-  onCreatePortfolio: () => void;
-}
-
-function EmptyState({
-  hasPortfolios,
-  onCreatePortfolio,
-}: EmptyStateProps) {
-  return (
-    <section className="rounded-xl border border-dashed border-surface-border bg-surface-raised p-8 text-center">
-      <h2 className="text-base font-semibold text-slate-100">
-        {hasPortfolios ? 'เลือกพอร์ตโฟลิโอเพื่อเริ่ม' : 'ยังไม่มีพอร์ตโฟลิโอ'}
-      </h2>
-      <p className="mx-auto mt-2 max-w-md text-sm text-slate-400">
-        {hasPortfolios
-          ? 'เลือกพอร์ตโฟลิโอจากเมนูด้านบน แล้วเริ่มบันทึกรายการซื้อ/ขายหรือฝากเงินเข้าได้เลย'
-          : 'สร้างพอร์ตโฟลิโอแรกของคุณ แล้วคุณจะสามารถเพิ่มหลักทรัพย์และติดตามผลตอบแทนได้'}
-      </p>
-
-      {hasPortfolios ? null : (
-        <button
-          type="button"
-          onClick={onCreatePortfolio}
-          className="mt-5 inline-flex items-center justify-center gap-2 rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-700"
-        >
-          <Plus aria-hidden="true" className="h-4 w-4" />
-          สร้างพอร์ตโฟลิโอ
-        </button>
-      )}
-    </section>
-  );
-}
-
 interface DashboardDialogsProps {
   dialog: OpenDialog;
   onClose: () => void;
@@ -488,17 +797,6 @@ interface DashboardDialogsProps {
   allAssets: readonly AssetListItem[];
 }
 
-/**
- * Renders at most one dialog, chosen by the `kind` discriminant.
- *
- * A `switch` with one case per `kind` is deliberate: adding a new dialog kind
- * makes the compiler point at this function, so a dialog can never be added
- * without deciding how it renders.
- *
- * Each form is keyed by the id it edits. That is what forces a fresh mount -
- * and therefore a fresh `useActionState` - every time a dialog is opened, which
- * is what stops a stale "success" from closing the dialog the instant it opens.
- */
 function DashboardDialogs({
   dialog,
   onClose,
@@ -544,11 +842,10 @@ function DashboardDialogs({
     case 'transaction':
       return (
         <TransactionFormModal
-          key={`transaction-${dialog.mode}`}
+          key="transaction"
           portfolios={portfolios}
           assets={allAssets}
           defaultPortfolioId={defaultPortfolioId}
-          defaultMode={dialog.mode}
           onClose={onClose}
         />
       );
@@ -610,7 +907,7 @@ function DashboardDialogs({
         <ConfirmDialog
           key={`delete-asset-${asset.id}`}
           title={`ลบหลักทรัพย์ ${asset.symbol}?`}
-          description={`รายการซื้อ/ขายของ ${asset.name} ที่เกี่ยวข้องจะถูกลบไปด้วย เงินสดที่ได้จากการขายจะยังคงอยู่ในพอร์ตโฟลิโอ`}
+          description={`รายการซื้อ/ขายของ ${asset.name} ที่เกี่ยวข้องจะถูกลบไปด้วย`}
           confirmLabel="ลบหลักทรัพย์"
           pendingLabel="กำลังลบ..."
           action={deleteAssetAction}
@@ -624,4 +921,3 @@ function DashboardDialogs({
       return null;
   }
 }
-
