@@ -7,9 +7,7 @@
  *
  * PRECISION: this is display arithmetic. The authoritative position, cost basis
  * and cash balance are maintained by the SQL in
- * 20260926000100_create_portfolio_functions.sql, using NUMERIC end to end.
- * Summing a few hundred floats to render a chart cannot drift in a way a human
- * would notice, and the same values in SQL would cost a round trip per card.
+ * 20260925000000_init_schema_and_functions.sql, using NUMERIC end to end.
  */
 
 import type { AssetsRow } from '@/types/database.types';
@@ -55,6 +53,22 @@ export interface AllocationSlice {
   marketValue: number;
   /** 0..1, of the sum of the slices. Zero when the total is zero. */
   percent: number;
+}
+
+export interface DcaProjectionInput {
+  currentQuantity: number;
+  currentAvgCost: number;
+  purchasePrice: number;
+  purchaseQuantity: number;
+  targetPriceThreshold: number;
+}
+
+export interface DcaProjectionResult {
+  newTotalQuantity: number;
+  newAverageCost: number;
+  totalInvestmentValue: number;
+  headroomToTargetPercent: number;
+  isBelowTargetThreshold: boolean;
 }
 
 const UNKNOWN_SECTOR_KEY = '__none__';
@@ -119,10 +133,6 @@ export function summarisePortfolio(
 
 /**
  * Allocation by asset type, largest first.
- *
- * Only the schema's own asset_type values are emitted, so the bar chart cannot
- * drift out of sync with the CHECK constraint; an unknown type from a future
- * migration is bucketed under the "other" label rather than crashing the page.
  */
 export function allocationByAssetType(
   positions: readonly PositionView[],
@@ -155,6 +165,42 @@ export function allocationBySector(
   return toSortedSlices(totals);
 }
 
+/**
+ * Calculates DCA scaling-in projected average cost basis and headroom % to target threshold.
+ */
+export function calculateDcaProjection(
+  input: DcaProjectionInput,
+): DcaProjectionResult {
+  const {
+    currentQuantity,
+    currentAvgCost,
+    purchasePrice,
+    purchaseQuantity,
+    targetPriceThreshold,
+  } = input;
+
+  const newTotalQuantity = currentQuantity + purchaseQuantity;
+  const currentTotalCost = currentQuantity * currentAvgCost;
+  const newPurchaseCost = purchaseQuantity * purchasePrice;
+  const totalCost = currentTotalCost + newPurchaseCost;
+
+  const newAverageCost = newTotalQuantity > 0 ? totalCost / newTotalQuantity : 0;
+  const totalInvestmentValue = newTotalQuantity * purchasePrice;
+
+  const headroomToTargetPercent =
+    targetPriceThreshold > 0
+      ? ((targetPriceThreshold - newAverageCost) / targetPriceThreshold) * 100
+      : 0;
+
+  return {
+    newTotalQuantity,
+    newAverageCost,
+    totalInvestmentValue,
+    headroomToTargetPercent,
+    isBelowTargetThreshold: newAverageCost < targetPriceThreshold,
+  };
+}
+
 function toSortedSlices(totals: ReadonlyMap<string, number>): AllocationSlice[] {
   const total = [...totals.values()].reduce((sum, value) => sum + value, 0);
 
@@ -176,8 +222,6 @@ function labelForAllocationKey(key: string): string {
     return 'อื่นๆ';
   }
 
-  // Reuse the single label map the asset form renders, so a type renamed in one
-  // place cannot be stale in the other.
   const assetType = ASSET_TYPES.find((type) => type === key);
   return assetType ? ASSET_TYPE_LABELS[assetType] : key;
 }
