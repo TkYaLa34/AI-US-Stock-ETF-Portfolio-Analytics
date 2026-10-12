@@ -166,6 +166,36 @@ export interface AiAnalysisCacheInsert {
 
 export type AiAnalysisCacheUpdate = Partial<AiAnalysisCacheInsert>;
 
+export interface PortfolioUploadsRow {
+  id: string;
+  user_id: string;
+  portfolio_id: string | null;
+  file_path: string;
+  file_name: string;
+  file_size: number;
+  mime_type: string;
+  status: 'processing' | 'success' | 'error';
+  extracted_data: Json;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PortfolioUploadsInsert {
+  id?: string;
+  user_id: string;
+  portfolio_id?: string | null;
+  file_path: string;
+  file_name: string;
+  file_size: number;
+  mime_type: string;
+  status?: 'processing' | 'success' | 'error';
+  extracted_data?: Json;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export type PortfolioUploadsUpdate = Partial<PortfolioUploadsInsert>;
+
 export interface Database {
   public: {
     Tables: {
@@ -249,6 +279,28 @@ export interface Database {
           },
           {
             foreignKeyName: 'ai_analysis_cache_user_id_fkey';
+            columns: ['user_id'];
+            isOneToOne: false;
+            referencedRelation: 'users';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+
+      portfolio_uploads: {
+        Row: PortfolioUploadsRow;
+        Insert: PortfolioUploadsInsert;
+        Update: PortfolioUploadsUpdate;
+        Relationships: [
+          {
+            foreignKeyName: 'portfolio_uploads_portfolio_id_fkey';
+            columns: ['portfolio_id'];
+            isOneToOne: false;
+            referencedRelation: 'portfolios';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'portfolio_uploads_user_id_fkey';
             columns: ['user_id'];
             isOneToOne: false;
             referencedRelation: 'users';
