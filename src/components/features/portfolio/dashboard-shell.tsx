@@ -48,6 +48,7 @@ import {
   type PositionView,
 } from '@/lib/portfolio/analytics';
 import { formatMoney, formatQuantity } from '@/lib/portfolio/format';
+import type { OcrextractedData } from '@/lib/portfolio/ocr';
 import type {
   AssetListItem,
   PortfolioListItem,
@@ -144,6 +145,9 @@ export function DashboardShell({
   const [dialog, setDialog] = useState<OpenDialog>({ kind: 'none' });
   const [isAiDrawerOpen, setIsAiDrawerOpen] = useState<boolean>(true);
   const [selectedDeepDiveSymbol, setSelectedDeepDiveSymbol] = useState<string>('MRVL');
+
+  // OCR Extracted Insights Banner State
+  const [extractedOcrNotice, setExtractedOcrNotice] = useState<string | null>(null);
 
   // OCR Extracted Insights Banner State
   const [extractedOcrNotice, setExtractedOcrNotice] = useState<string | null>(null);
