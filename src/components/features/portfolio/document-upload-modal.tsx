@@ -1,11 +1,15 @@
 'use client';
 
 /**
- * Professional Portfolio Document & Image Upload Component with AI OCR Preview.
+ * Professional Portfolio Document & Image Upload Component with Target Portfolio Selection
+ * and AI Vision OCR Preview.
  *
  * Provides drag-and-drop & file browser upload for PDF, PNG, and JPG portfolio
  * statements and screenshots. Displays clean previews, status indicators
  * (Processing, Success, Error), and extracted OCR analytics.
+ *
+ * Allows users to select a Target Portfolio (or create a new portfolio) to sync
+ * extracted asset positions directly into the Supabase database.
  *
  * STRICTLY NON-TRANSACTIONAL: Focuses exclusively on analytics and tracking.
  */
@@ -24,33 +28,44 @@ import {
   ArrowRight,
   ShieldCheck,
   FileSpreadsheet,
+  FolderPlus,
+  Layers,
 } from 'lucide-react';
 
 import {
   uploadPortfolioDocumentAction,
+  syncExtractedAssetsAction,
   listUserUploadsAction,
   deleteUploadAction,
   type UploadActionResult,
 } from '@/server/actions/upload-actions';
 import type { OcrextractedData } from '@/lib/portfolio/ocr';
+import type { PortfolioListItem } from '@/lib/portfolio/types';
 import type { PortfolioUploadsRow } from '@/types/database.types';
 
 export interface DocumentUploadModalProps {
-  portfolioId: string | null;
+  portfolios: readonly PortfolioListItem[];
+  selectedPortfolioId: string | null;
   onClose: () => void;
-  onApplyExtractedData?: (extracted: OcrextractedData) => void;
+  onSyncSuccess?: (targetPortfolioId: string, message: string) => void;
 }
 
 export function DocumentUploadModal({
-  portfolioId,
+  portfolios,
+  selectedPortfolioId,
   onClose,
-  onApplyExtractedData,
+  onSyncSuccess,
 }: DocumentUploadModalProps) {
+  const [targetPortfolioId, setTargetPortfolioId] = useState<string>(
+    selectedPortfolioId ?? portfolios[0]?.id ?? 'new',
+  );
   const [isDragging, setIsDragging] = useState<boolean>(false);
   const [isUploading, setIsUploading] = useState<boolean>(false);
+  const [isSyncing, setIsSyncing] = useState<boolean>(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [uploadResult, setUploadResult] = useState<UploadActionResult | null>(null);
+  const [syncNotice, setSyncNotice] = useState<string | null>(null);
   const [userUploads, setUserUploads] = useState<PortfolioUploadsRow[]>([]);
   const [isLoadingUploads, setIsLoadingUploads] = useState<boolean>(true);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -93,6 +108,7 @@ export function DocumentUploadModal({
 
     setSelectedFile(file);
     setUploadResult(null);
+    setSyncNotice(null);
 
     if (file.type.startsWith('image/')) {
       const url = URL.createObjectURL(file);
@@ -137,11 +153,12 @@ export function DocumentUploadModal({
 
     setIsUploading(true);
     setUploadResult(null);
+    setSyncNotice(null);
 
     const formData = new FormData();
     formData.append('file', selectedFile);
-    if (portfolioId) {
-      formData.append('portfolioId', portfolioId);
+    if (targetPortfolioId !== 'new') {
+      formData.append('portfolioId', targetPortfolioId);
     }
 
     const result = await uploadPortfolioDocumentAction(formData);
@@ -150,6 +167,30 @@ export function DocumentUploadModal({
 
     if (result.success && result.upload) {
       setUserUploads((prev) => [result.upload!, ...prev]);
+    }
+  };
+
+  const handleSyncToDatabase = async (extracted: OcrextractedData) => {
+    if (!extracted.extractedAssets || extracted.extractedAssets.length === 0) return;
+
+    setIsSyncing(true);
+    setSyncNotice(null);
+
+    const syncRes = await syncExtractedAssetsAction(
+      targetPortfolioId,
+      extracted.extractedAssets,
+      selectedFile?.name,
+    );
+
+    setIsSyncing(false);
+
+    if (syncRes.success && syncRes.targetPortfolioId) {
+      setSyncNotice(syncRes.message);
+      if (onSyncSuccess) {
+        onSyncSuccess(syncRes.targetPortfolioId, syncRes.message);
+      }
+    } else {
+      setSyncNotice(syncRes.message || 'การนำเข้าข้อมูลสินทรัพย์ไม่สำเร็จ');
     }
   };
 
@@ -182,10 +223,10 @@ export function DocumentUploadModal({
             </div>
             <div>
               <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                อัปโหลดเอกสาร / รูปภาพพอร์ตโฟลิโอ (AI OCR Scanner)
+                อัปโหลดเอกสาร / รูปภาพพอร์ตโฟลิโอ (AI Vision OCR)
               </h2>
               <p className="text-xs text-slate-400">
-                สแกนรายงานและภาพหน้าจอด้วยระบบ AI เพื่อติดตามและวิเคราะห์สัดส่วนการลงทุน (Non-Transactional)
+                สแกนรายงานและภาพหน้าจอแอปพลิเคชันด้วยระบบ AI เพื่อซิงก์ข้อมูลหลักทรัพย์ (Non-Transactional)
               </p>
             </div>
           </div>
@@ -196,6 +237,32 @@ export function DocumentUploadModal({
           >
             <X className="h-5 w-5" />
           </button>
+        </div>
+
+        {/* 1. Target Portfolio Selector Dropdown */}
+        <div className="rounded-xl border border-slate-800 bg-slate-950/80 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+          <div className="flex items-center gap-2 text-slate-300">
+            <Layers className="h-4 w-4 text-brand-400 shrink-0" />
+            <div>
+              <span className="font-bold text-slate-200 block">พอร์ตโฟลิโอปลายทาง (Target Portfolio):</span>
+              <span className="text-slate-400 text-[11px]">เลือกพอร์ตที่ต้องการนำเข้าและซิงก์สัดส่วนถือครอง</span>
+            </div>
+          </div>
+
+          <select
+            value={targetPortfolioId}
+            onChange={(e) => setTargetPortfolioId(e.target.value)}
+            className="rounded-lg border border-slate-800 bg-slate-900 px-3 py-2 text-xs font-semibold text-slate-100 focus:border-brand-500 focus:outline-none min-w-[220px]"
+          >
+            {portfolios.map((p) => (
+              <option key={p.id} value={p.id}>
+                พอร์ต: {p.name} ({p.base_currency})
+              </option>
+            ))}
+            <option value="new">
+              + สร้างพอร์ตโฟลิโอใหม่จากเอกสาร (Create New Portfolio)
+            </option>
+          </select>
         </div>
 
         {/* Upload Dropzone */}
@@ -279,6 +346,7 @@ export function DocumentUploadModal({
                   setSelectedFile(null);
                   setPreviewUrl(null);
                   setUploadResult(null);
+                  setSyncNotice(null);
                 }}
                 disabled={isUploading}
                 className="rounded-lg border border-slate-800 bg-slate-900 px-3 py-2 text-xs font-medium text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-colors"
@@ -295,16 +363,33 @@ export function DocumentUploadModal({
                 {isUploading ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    กำลังสแกน AI OCR...
+                    กำลังสแกน AI Vision OCR...
                   </>
                 ) : (
                   <>
                     <Sparkles className="h-4 w-4" />
-                    เริ่มสแกนด้วย AI OCR
+                    เริ่มสแกนด้วย AI Vision
                   </>
                 )}
               </button>
             </div>
+          </div>
+        ) : null}
+
+        {/* Sync Notification Banner */}
+        {syncNotice ? (
+          <div className="rounded-xl border border-emerald-500/40 bg-emerald-950/30 p-3.5 text-xs text-emerald-300 flex items-center justify-between gap-2">
+            <span className="flex items-center gap-2 font-semibold">
+              <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+              {syncNotice}
+            </span>
+            <button
+              type="button"
+              onClick={onClose}
+              className="text-xs font-bold text-white bg-emerald-600 px-2.5 py-1 rounded hover:bg-emerald-500"
+            >
+              ดูแดชบอร์ด →
+            </button>
           </div>
         ) : null}
 
@@ -322,7 +407,7 @@ export function DocumentUploadModal({
                 {uploadResult.success ? (
                   <>
                     <CheckCircle2 className="h-4 w-4 text-emerald-400" />
-                    <span className="text-emerald-300">สถานะ: ประมวลผลสำเร็จ (Success)</span>
+                    <span className="text-emerald-300">สถานะ: ประมวลผล AI OCR สำเร็จ (Success)</span>
                   </>
                 ) : (
                   <>
@@ -339,7 +424,7 @@ export function DocumentUploadModal({
                 <div className="rounded bg-slate-950/80 p-3 border border-slate-800 text-slate-300 leading-relaxed">
                   <p className="font-bold text-slate-200 flex items-center gap-1.5 text-xs">
                     <Sparkles className="h-3.5 w-3.5 text-brand-400" />
-                    สรุปผลการวิเคราะห์ AI:
+                    สรุปผลการวิเคราะห์ AI Vision:
                   </p>
                   <p className="mt-1 text-slate-300">{uploadResult.extractedData.aiInsights.summary}</p>
                 </div>
@@ -370,18 +455,26 @@ export function DocumentUploadModal({
                   </table>
                 </div>
 
-                {onApplyExtractedData ? (
-                  <div className="flex justify-end pt-1">
-                    <button
-                      type="button"
-                      onClick={() => onApplyExtractedData(uploadResult.extractedData!)}
-                      className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3.5 py-2 text-xs font-semibold text-white hover:bg-emerald-500 transition-colors"
-                    >
-                      นำข้อมูลเข้าสู่แดชบอร์ดเพื่อวิเคราะห์ภาพรวม
-                      <ArrowRight className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                ) : null}
+                <div className="flex justify-end pt-1">
+                  <button
+                    type="button"
+                    onClick={() => handleSyncToDatabase(uploadResult.extractedData!)}
+                    disabled={isSyncing}
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-2 text-xs font-semibold text-white hover:bg-emerald-500 disabled:opacity-50 transition-colors"
+                  >
+                    {isSyncing ? (
+                      <>
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        กำลังบันทึกและซิงก์สู่พอร์ตโฟลิโอ...
+                      </>
+                    ) : (
+                      <>
+                        นำข้อมูลเข้าสู่แดชบอร์ดพอร์ตโฟลิโอเพื่อวิเคราะห์ภาพรวม
+                        <ArrowRight className="h-3.5 w-3.5" />
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
             ) : null}
           </div>

@@ -1,15 +1,15 @@
 'use server';
 
 /**
- * Server actions for Portfolio Document/Image Uploads and AI OCR Extraction.
+ * Server actions for Portfolio Document/Image Uploads, AI Vision OCR Extraction,
+ * and Database Asset Syncing into target portfolios.
  *
- * Strictly non-transactional: Handles upload storage, metadata, and OCR extraction
- * for analytics and tracking purposes only.
+ * Strictly non-transactional analytics and position tracking.
  */
 
 import { revalidatePath } from 'next/cache';
 
-import { simulateAiOcrExtraction, type OcrextractedData } from '@/lib/portfolio/ocr';
+import { simulateAiOcrExtraction, type ExtractedAssetItem, type OcrextractedData } from '@/lib/portfolio/ocr';
 import { createClient } from '@/lib/supabase/server';
 import type { PortfolioUploadsRow } from '@/types/database.types';
 
@@ -18,6 +18,12 @@ export interface UploadActionResult {
   message: string;
   upload?: PortfolioUploadsRow;
   extractedData?: OcrextractedData;
+}
+
+export interface SyncAssetsActionResult {
+  success: boolean;
+  message: string;
+  targetPortfolioId?: string;
 }
 
 /**
@@ -71,10 +77,12 @@ export async function uploadPortfolioDocumentAction(
   const filePath = `${user.id}/${timestamp}_${sanitizedFileName}`;
 
   try {
-    // 1. Upload to Supabase Storage bucket 'portfolio-documents'
+    // 1. Convert file to base64 for Vision AI scanner
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
+    const base64Content = buffer.toString('base64');
 
+    // 2. Upload to Supabase Storage bucket 'portfolio-documents'
     const { error: storageError } = await supabase.storage
       .from('portfolio-documents')
       .upload(filePath, buffer, {
@@ -86,10 +94,10 @@ export async function uploadPortfolioDocumentAction(
       console.warn('Storage upload notice (falling back to database record):', storageError.message);
     }
 
-    // 2. Perform Simulated AI OCR Extraction
-    const extractedData = await simulateAiOcrExtraction(file.name, file.type);
+    // 3. Perform Simulated AI Vision OCR Extraction
+    const extractedData = await simulateAiOcrExtraction(file.name, file.type, base64Content);
 
-    // 3. Insert record into portfolio_uploads table
+    // 4. Insert record into portfolio_uploads table
     const { data: uploadRow, error: dbError } = await supabase
       .from('portfolio_uploads')
       .insert({
@@ -127,6 +135,125 @@ export async function uploadPortfolioDocumentAction(
       message: errorMsg,
     };
   }
+}
+
+/**
+ * Syncs extracted OCR asset items directly into a target portfolio inside Supabase database.
+ * If targetPortfolioId is 'new' or empty, auto-creates a new portfolio.
+ */
+export async function syncExtractedAssetsAction(
+  targetPortfolioId: string,
+  extractedAssets: ExtractedAssetItem[],
+  sourceFileName?: string,
+): Promise<SyncAssetsActionResult> {
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return {
+      success: false,
+      message: 'กรุณาเข้าสู่ระบบก่อนซิงก์ข้อมูลสินทรัพย์',
+    };
+  }
+
+  if (!extractedAssets || extractedAssets.length === 0) {
+    return {
+      success: false,
+      message: 'ไม่พบรายการสินทรัพย์จากการสแกนเพื่อนำเข้า',
+    };
+  }
+
+  let finalPortfolioId = targetPortfolioId;
+
+  // 1. Create New Portfolio if requested
+  if (targetPortfolioId === 'new' || !targetPortfolioId) {
+    const today = new Date().toLocaleDateString('th-TH');
+    const newName = `พอร์ตนำเข้า AI OCR (${sourceFileName ? sourceFileName.slice(0, 20) : today})`;
+
+    const { data: newPortfolio, error: createError } = await supabase
+      .from('portfolios')
+      .insert({
+        user_id: user.id,
+        name: newName,
+        description: `สร้างอัตโนมัติจากการสแกน AI OCR เอกสาร "${sourceFileName ?? 'Portfolio Statement'}"`,
+        base_currency: 'USD',
+        cash_balance: 0,
+        is_default: false,
+      })
+      .select()
+      .single();
+
+    if (createError || !newPortfolio) {
+      return {
+        success: false,
+        message: `สร้างพอร์ตโฟลิโอใหม่ไม่สำเร็จ: ${createError?.message ?? 'Unknown error'}`,
+      };
+    }
+
+    finalPortfolioId = newPortfolio.id;
+  }
+
+  // 2. Fetch existing assets in target portfolio
+  const { data: existingAssets } = await supabase
+    .from('assets')
+    .select('*')
+    .eq('portfolio_id', finalPortfolioId)
+    .eq('user_id', user.id);
+
+  const existingMap = new Map((existingAssets ?? []).map((a) => [a.symbol.toUpperCase(), a]));
+
+  // 3. Upsert extracted asset items
+  let insertedCount = 0;
+  let updatedCount = 0;
+
+  for (const item of extractedAssets) {
+    const symbolUpper = item.symbol.toUpperCase();
+    const existing = existingMap.get(symbolUpper);
+
+    if (existing) {
+      // Update existing asset
+      const { error: updateError } = await supabase
+        .from('assets')
+        .update({
+          quantity: item.quantity,
+          average_cost: item.averageCost,
+          current_price: item.averageCost,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', existing.id);
+
+      if (!updateError) updatedCount++;
+    } else {
+      // Insert new asset
+      const { error: insertError } = await supabase
+        .from('assets')
+        .insert({
+          portfolio_id: finalPortfolioId,
+          user_id: user.id,
+          symbol: symbolUpper,
+          name: item.name,
+          asset_type: item.assetType,
+          sector: item.sector,
+          currency: 'USD',
+          quantity: item.quantity,
+          average_cost: item.averageCost,
+          current_price: item.averageCost,
+        });
+
+      if (!insertError) insertedCount++;
+    }
+  }
+
+  revalidatePath('/dashboard');
+
+  return {
+    success: true,
+    message: `นำเข้าข้อมูลสำเร็จ: เพิ่มสินทรัพย์ใหม่ ${insertedCount} รายการ, อัปเดต ${updatedCount} รายการ`,
+    targetPortfolioId: finalPortfolioId,
+  };
 }
 
 /**

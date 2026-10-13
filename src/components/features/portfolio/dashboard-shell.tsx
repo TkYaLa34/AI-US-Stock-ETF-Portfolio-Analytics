@@ -7,12 +7,14 @@
  * 1. Top Navigation & US Market Search Bar & Portfolio Statement Upload Modal
  * 2. Section 1: Portfolio Health & Summary Grid (Health Score, 4-Card Metrics, AI Rebalancing Advisor)
  * 3. Section 2: AI Institutional Intel & Smart Money Feed ("Exec Sum" & "OUR TAKE")
- * 4. Section 3: Sequential Asset Deep-Dive View & DCA Accumulation Cost Basis Simulator
- * 5. Section 4: Collapsible AI Advisor Drawer
+ * 4. Section 3: US Stock & ETF Intelligence Workbench (247WallSt Target Scenarios & One-Click Portfolio Add)
+ * 5. Section 4: Sequential Asset Deep-Dive View & DCA Accumulation Cost Basis Simulator
+ * 6. Section 5: Collapsible AI Advisor Drawer
  */
 
 import { useState, type ReactNode } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import {
   Activity,
   BarChart3,
@@ -66,6 +68,7 @@ import { ConfirmDialog } from './confirm-dialog';
 import { DocumentUploadModal } from './document-upload-modal';
 import { PortfolioFormModal } from './portfolio-form-modal';
 import { PositionsTable } from './positions-table';
+import { StockIntelligenceWorkbench } from './stock-intelligence-workbench';
 import { SummaryCards } from './summary-cards';
 import { SymbolSearch } from './symbol-search';
 import { TransactionFormModal } from './transaction-form-modal';
@@ -138,9 +141,13 @@ export function DashboardShell({
   readError,
   readErrorDetail,
 }: DashboardShellProps) {
+  const router = useRouter();
   const [dialog, setDialog] = useState<OpenDialog>({ kind: 'none' });
   const [isAiDrawerOpen, setIsAiDrawerOpen] = useState<boolean>(true);
-  const [selectedDeepDiveSymbol, setSelectedDeepDiveSymbol] = useState<string>('NVDA');
+  const [selectedDeepDiveSymbol, setSelectedDeepDiveSymbol] = useState<string>('MRVL');
+
+  // OCR Extracted Insights Banner State
+  const [extractedOcrNotice, setExtractedOcrNotice] = useState<string | null>(null);
 
   // OCR Extracted Insights Banner State
   const [extractedOcrNotice, setExtractedOcrNotice] = useState<string | null>(null);
@@ -167,26 +174,15 @@ export function DashboardShell({
     setSelectedDeepDiveSymbol(item.symbol);
   };
 
-  const handleApplyExtractedData = (data: OcrextractedData) => {
-    if (data.extractedAssets && data.extractedAssets.length > 0) {
-      const topAsset = data.extractedAssets[0];
-      if (topAsset) {
-        setDcaCurrentQty(topAsset.quantity);
-        setDcaCurrentCost(topAsset.averageCost);
-        setSelectedDeepDiveSymbol(topAsset.symbol);
-      }
-      if (data.extractedAssets.length > 1) {
-        const nextAsset = data.extractedAssets[1];
-        if (nextAsset) {
-          setDcaNewQty(nextAsset.quantity);
-          setDcaNewPrice(nextAsset.averageCost);
-        }
-      }
-    }
-    setExtractedOcrNotice(
-      `นำข้อมูลจากเอกสาร "${data.fileName}" เข้าสู่ระบบวิเคราะห์เรียบร้อยแล้ว: สกัดได้ ${data.extractedAssets.length} รายการ`,
-    );
+  const handleSyncSuccess = (targetPortfolioId: string, message: string) => {
+    setExtractedOcrNotice(message);
+    router.push(`${DASHBOARD_PATH}?${PORTFOLIO_QUERY_PARAM}=${targetPortfolioId}`);
+    router.refresh();
     close();
+  };
+
+  const handleRefreshPortfolioData = () => {
+    router.refresh();
   };
 
   return (
@@ -504,12 +500,19 @@ export function DashboardShell({
           </div>
         </section>
 
-        {/* SECTION 3: Sequential Asset Deep-Dive View */}
+        {/* SECTION 3: US Stock & ETF Intelligence Workbench (247WallSt Style & One-Click Portfolio Sync) */}
+        <StockIntelligenceWorkbench
+          portfolios={portfolios}
+          initialSymbol={selectedDeepDiveSymbol}
+          onAssetAdded={handleRefreshPortfolioData}
+        />
+
+        {/* SECTION 4: Sequential Asset Deep-Dive View */}
         <section className="rounded-xl border border-slate-800 bg-slate-900 p-5 flex flex-col gap-6">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between border-b border-slate-800 pb-3 gap-2">
             <h2 className="text-lg font-bold text-slate-100 flex items-center gap-2">
               <BarChart3 className="h-5 w-5 text-brand-400" />
-              Section 3: วิเคราะห์เจาะลึกรายหลักทรัพย์ (Asset Deep-Dive Analytics) — {selectedDeepDiveSymbol}
+              Section 4: วิเคราะห์เจาะลึกรายหลักทรัพย์ (Asset Deep-Dive Analytics) — {selectedDeepDiveSymbol}
             </h2>
             <div className="flex items-center gap-2 text-xs text-slate-400">
               <span>เลือกหลักทรัพย์:</span>
@@ -518,11 +521,13 @@ export function DashboardShell({
                 onChange={(e) => setSelectedDeepDiveSymbol(e.target.value)}
                 className="rounded border border-slate-800 bg-slate-950 px-2.5 py-1 text-slate-200 focus:border-brand-500 focus:outline-none"
               >
+                <option value="MRVL">MRVL — Marvell Technology</option>
                 <option value="NVDA">NVDA — NVIDIA Corp.</option>
                 <option value="AAPL">AAPL — Apple Inc.</option>
                 <option value="MSFT">MSFT — Microsoft Corp.</option>
                 <option value="VOO">VOO — Vanguard S&P 500 ETF</option>
                 <option value="QQQ">QQQ — Invesco QQQ Trust</option>
+                <option value="JEPQ">JEPQ — JPMorgan NASDAQ Equity Premium</option>
               </select>
             </div>
           </div>
@@ -643,13 +648,13 @@ export function DashboardShell({
           </div>
         </section>
 
-        {/* SECTION 4: Collapsible AI Advisor Drawer */}
+        {/* SECTION 5: Collapsible AI Advisor Drawer */}
         {isAiDrawerOpen ? (
           <aside className="rounded-xl border border-brand-500/30 bg-slate-900 p-5">
             <div className="flex items-center justify-between pb-3 border-b border-slate-800">
               <div className="flex items-center gap-2">
                 <BrainCircuit className="h-5 w-5 text-brand-400" />
-                <h3 className="font-bold text-slate-100">Section 4: Active AI Portfolio Advisor Panel</h3>
+                <h3 className="font-bold text-slate-100">Section 5: Active AI Portfolio Advisor Panel</h3>
               </div>
               <button
                 type="button"
@@ -692,7 +697,7 @@ export function DashboardShell({
           portfolios={portfolios}
           selectedPortfolio={selectedPortfolio}
           allAssets={allAssets}
-          onApplyExtractedData={handleApplyExtractedData}
+          onSyncSuccess={handleSyncSuccess}
         />
       </main>
     </div>
@@ -843,7 +848,7 @@ interface DashboardDialogsProps {
   portfolios: readonly PortfolioListItem[];
   selectedPortfolio: PortfolioListItem | null;
   allAssets: readonly AssetListItem[];
-  onApplyExtractedData: (extracted: OcrextractedData) => void;
+  onSyncSuccess: (targetPortfolioId: string, message: string) => void;
 }
 
 function DashboardDialogs({
@@ -852,7 +857,7 @@ function DashboardDialogs({
   portfolios,
   selectedPortfolio,
   allAssets,
-  onApplyExtractedData,
+  onSyncSuccess,
 }: DashboardDialogsProps) {
   const defaultPortfolioId = selectedPortfolio?.id ?? portfolios[0]?.id ?? '';
 
@@ -861,9 +866,10 @@ function DashboardDialogs({
       return (
         <DocumentUploadModal
           key="upload-document"
-          portfolioId={selectedPortfolio?.id ?? null}
+          portfolios={portfolios}
+          selectedPortfolioId={selectedPortfolio?.id ?? null}
           onClose={onClose}
-          onApplyExtractedData={onApplyExtractedData}
+          onSyncSuccess={onSyncSuccess}
         />
       );
 
