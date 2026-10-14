@@ -48,6 +48,7 @@ import {
   type PositionView,
 } from '@/lib/portfolio/analytics';
 import { formatMoney, formatQuantity } from '@/lib/portfolio/format';
+import type { OcrextractedData } from '@/lib/portfolio/ocr';
 import type {
   AssetListItem,
   PortfolioListItem,
