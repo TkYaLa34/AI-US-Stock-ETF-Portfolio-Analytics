@@ -48,7 +48,6 @@ import {
   type PositionView,
 } from '@/lib/portfolio/analytics';
 import { formatMoney, formatQuantity } from '@/lib/portfolio/format';
-import type { OcrextractedData } from '@/lib/portfolio/ocr';
 import type {
   AssetListItem,
   PortfolioListItem,
@@ -149,9 +148,6 @@ export function DashboardShell({
   // OCR Extracted Insights Banner State
   const [extractedOcrNotice, setExtractedOcrNotice] = useState<string | null>(null);
 
-  // OCR Extracted Insights Banner State
-  const [extractedOcrNotice, setExtractedOcrNotice] = useState<string | null>(null);
-
   // DCA Simulator State
   const [dcaCurrentQty, setDcaCurrentQty] = useState<number>(100);
   const [dcaCurrentCost, setDcaCurrentCost] = useState<number>(115.0);
@@ -167,7 +163,7 @@ export function DashboardShell({
     targetPriceThreshold: dcaTargetThreshold,
   });
 
-  const close = () => setDialog({ kind: 'none' });
+  const closeDialog = () => setDialog({ kind: 'none' });
   const currency = selectedPortfolio?.base_currency ?? 'USD';
 
   const handleGlobalSelectSymbol = (item: MarketSymbolResult) => {
@@ -178,7 +174,7 @@ export function DashboardShell({
     setExtractedOcrNotice(message);
     router.push(`${DASHBOARD_PATH}?${PORTFOLIO_QUERY_PARAM}=${targetPortfolioId}`);
     router.refresh();
-    close();
+    setDialog({ kind: 'none' });
   };
 
   const handleRefreshPortfolioData = () => {
@@ -693,7 +689,7 @@ export function DashboardShell({
 
         <DashboardDialogs
           dialog={dialog}
-          onClose={close}
+          onClose={closeDialog}
           portfolios={portfolios}
           selectedPortfolio={selectedPortfolio}
           allAssets={allAssets}
