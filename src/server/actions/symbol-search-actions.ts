@@ -57,6 +57,7 @@ export interface AssetIntelligenceData {
 
 const COMPREHENSIVE_US_MARKET_TICKERS: readonly MarketSymbolResult[] = [
   // High Growth & Tech
+  { symbol: 'MU', name: 'Micron Technology Inc.', assetType: 'stock', exchange: 'NASDAQ', currency: 'USD' },
   { symbol: 'MRVL', name: 'Marvell Technology Inc.', assetType: 'stock', exchange: 'NASDAQ', currency: 'USD' },
   { symbol: 'NVDA', name: 'NVIDIA Corporation', assetType: 'stock', exchange: 'NASDAQ', currency: 'USD' },
   { symbol: 'AAPL', name: 'Apple Inc.', assetType: 'stock', exchange: 'NASDAQ', currency: 'USD' },
@@ -108,6 +109,48 @@ export async function searchUSMarketSymbolsAction(query: string): Promise<Market
 
 /** Institutional Intelligence profiles inspired by 247WallSt research analysis */
 const INTELLIGENCE_DATABASE: Record<string, AssetIntelligenceData> = {
+  MU: {
+    symbol: 'MU',
+    name: 'Micron Technology Inc.',
+    assetType: 'stock',
+    exchange: 'NASDAQ',
+    currency: 'USD',
+    marketCap: '$118.2B',
+    peRatio: '18.5x (Forward)',
+    dividendYield: '0.42%',
+    forwardEps: '$5.80',
+    week52Low: 65.40,
+    week52High: 157.50,
+    currentPrice: 106.80,
+    projections: {
+      currentPrice: 106.80,
+      conservative12M: 110.00,
+      base12M: 140.00,
+      optimistic12M: 175.00,
+      conservative5Y: 160.00,
+      base5Y: 220.00,
+      optimistic5Y: 290.00,
+    },
+    analystRatings: {
+      consensus: 'Strong Buy',
+      buyPercent: 86,
+      holdPercent: 11,
+      sellPercent: 3,
+      totalAnalysts: 35,
+      meanTargetPrice: 142.50,
+      upsidePercent: 33.4,
+    },
+    ourTake: {
+      summary: 'OUR TAKE: Micron คือผู้นำเทคโนโลยี HBM3E (High Bandwidth Memory) ที่ใช้ในชิป AI Accelerators (เช่น NVIDIA H200/B200) ส่งผลให้ขอบเขตอัตรากำไรขยายตัวก้าวกระโดด',
+      catalysts: [
+        'ออเดอร์ HBM3E ถูกจองล่วงหน้าเต็มกำลังการผลิตตลอดปี 2025',
+        'การฟื้นตัวของวงจรหน่วยความจำ DRAM และ NAND Flash ทั่วโลก',
+      ],
+      riskFactors: ['ความผันผวนของราคาขายเฉลี่ย (ASP) ในตลาดหน่วยความจำ', 'ความเสี่ยงทางภูมิรัฐศาสตร์เซมิคอนดักเตอร์'],
+      recommendedAllocationWeight: '6.0% - 10.0% (Core AI Semiconductor)',
+    },
+  },
+
   MRVL: {
     symbol: 'MRVL',
     name: 'Marvell Technology Inc.',

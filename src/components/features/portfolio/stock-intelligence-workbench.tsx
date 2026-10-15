@@ -12,7 +12,7 @@
  * 6. One-Click "Add to Target Portfolio" direct database insertion.
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, type FormEvent } from 'react';
 import {
   Search,
   Sparkles,
@@ -43,7 +43,7 @@ export interface StockIntelligenceWorkbenchProps {
   onAssetAdded?: () => void;
 }
 
-const RECENT_POPULAR_SEARCHES = ['MRVL', 'NVDA', 'JEPQ', 'EMXC', 'VOO', 'QQQ', 'AAPL', 'MSFT'];
+const RECENT_POPULAR_SEARCHES = ['MU', 'MRVL', 'NVDA', 'JEPQ', 'EMXC', 'VOO', 'QQQ', 'AAPL'];
 
 export function StockIntelligenceWorkbench({
   portfolios,
@@ -53,9 +53,16 @@ export function StockIntelligenceWorkbench({
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [searchResults, setSearchResults] = useState<MarketSymbolResult[]>([]);
   const [isSearching, setIsSearching] = useState<boolean>(false);
-  const [activeSymbol, setActiveSymbol] = useState<string>(initialSymbol);
+  const [activeSymbol, setActiveSymbol] = useState<string>(initialSymbol.toUpperCase());
   const [intelData, setIntelData] = useState<AssetIntelligenceData | null>(null);
   const [isLoadingIntel, setIsLoadingIntel] = useState<boolean>(true);
+
+  // Sync activeSymbol if initialSymbol changes externally
+  useEffect(() => {
+    if (initialSymbol) {
+      setActiveSymbol(initialSymbol.toUpperCase());
+    }
+  }, [initialSymbol]);
 
   // Add to Portfolio Modal State
   const [isAddModalOpen, setIsAddModalOpen] = useState<boolean>(false);
@@ -108,9 +115,17 @@ export function StockIntelligenceWorkbench({
   }, [searchQuery]);
 
   const handleSelectTicker = (sym: string) => {
-    setActiveSymbol(sym);
+    const upper = sym.toUpperCase().trim();
+    setActiveSymbol(upper);
     setSearchQuery('');
     setSearchResults([]);
+  };
+
+  const handleSearchSubmit = (e: FormEvent) => {
+    e.preventDefault();
+    if (searchQuery.trim().length > 0) {
+      handleSelectTicker(searchQuery);
+    }
   };
 
   const handleAddToPortfolioSubmit = async () => {
@@ -159,16 +174,16 @@ export function StockIntelligenceWorkbench({
           </p>
         </div>
 
-        {/* Search Input Bar */}
-        <div className="relative w-full md:w-96">
+        {/* Search Input Bar with Form Submit */}
+        <form onSubmit={handleSearchSubmit} className="relative w-full md:w-96">
           <div className="relative flex items-center">
             <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
             <input
               type="text"
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="ค้นหาหุ้น หรือ ETF (เช่น MRVL, NVDA, JEPQ)..."
-              className="w-full rounded-xl border border-slate-800 bg-slate-950 py-2 pl-9 pr-8 text-xs text-slate-100 placeholder-slate-500 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+              onChange={(e) => setSearchQuery(e.target.value.toUpperCase())}
+              placeholder="ค้นหาหุ้น หรือ ETF (เช่น MU, MRVL, NVDA, JEPQ)..."
+              className="w-full rounded-xl border border-slate-800 bg-slate-950 py-2 pl-9 pr-8 text-xs font-semibold text-slate-100 placeholder-slate-500 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
             />
             {isSearching ? (
               <Loader2 className="absolute right-3 top-2.5 h-4 w-4 animate-spin text-brand-400" />
@@ -196,7 +211,7 @@ export function StockIntelligenceWorkbench({
               ))}
             </div>
           ) : null}
-        </div>
+        </form>
       </div>
 
       {/* Popular Quick-Select Tags */}
@@ -223,7 +238,7 @@ export function StockIntelligenceWorkbench({
       {/* 2. Institutional Asset Deep-Dive Card */}
       {isLoadingIntel ? (
         <div className="flex items-center justify-center p-12 text-xs text-slate-400 gap-2">
-          <Loader2 className="h-5 w-5 animate-spin text-brand-400" /> กำลังประมวลผลข้อมูลบทวิเคราะห์สถาบัน...
+          <Loader2 className="h-5 w-5 animate-spin text-brand-400" /> กำลังประมวลผลข้อมูลบทวิเคราะห์สถาบันสำหรับ {activeSymbol}...
         </div>
       ) : intelData ? (
         <div className="space-y-6">
