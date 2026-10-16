@@ -4,7 +4,7 @@
  * US Stock & ETF Portfolio Analytics Dashboard.
  *
  * Provides a clean vertical layout featuring:
- * 1. Top Navigation & US Market Search Bar & Portfolio Statement Upload Modal
+ * 1. InvestAI Navigator Header, Prominent Global Search, and Sub-header Horizontal Navigation Menu
  * 2. Section 1: Portfolio Health & Summary Grid (Health Score, 4-Card Metrics, AI Rebalancing Advisor)
  * 3. Section 2: AI Institutional Intel & Smart Money Feed ("Exec Sum" & "OUR TAKE")
  * 4. Section 3: US Stock & ETF Intelligence Workbench (247WallSt Target Scenarios & One-Click Portfolio Add)
@@ -37,6 +37,11 @@ import {
   TrendingUp,
   UploadCloud,
   Users,
+  Compass,
+  Bell,
+  Newspaper,
+  PieChart,
+  BarChart2,
 } from 'lucide-react';
 
 import { Alert } from '@/components/ui/alert';
@@ -142,6 +147,7 @@ export function DashboardShell({
 }: DashboardShellProps) {
   const router = useRouter();
   const [dialog, setDialog] = useState<OpenDialog>({ kind: 'none' });
+  const [activeMenuTab, setActiveMenuTab] = useState<string>('dashboard');
   const [isAiDrawerOpen, setIsAiDrawerOpen] = useState<boolean>(true);
   const [selectedDeepDiveSymbol, setSelectedDeepDiveSymbol] = useState<string>('MRVL');
 
@@ -184,10 +190,10 @@ export function DashboardShell({
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 font-sans">
       {/* 1. Real-time Market Ticker Header */}
-      <div className="border-b border-slate-800 bg-slate-900/90 text-xs text-slate-300 backdrop-blur sticky top-0 z-20">
+      <div className="border-b border-slate-800 bg-slate-900/90 text-xs text-slate-300 backdrop-blur sticky top-0 z-30">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-1.5">
           <div className="flex items-center gap-4 overflow-x-auto py-0.5 no-scrollbar">
-            <span className="flex items-center gap-1.5 font-semibold text-brand-400 shrink-0">
+            <span className="flex items-center gap-1.5 font-bold text-emerald-400 shrink-0">
               <Globe className="h-3.5 w-3.5" /> US Markets:
             </span>
             {MARKET_TICKERS.map((ticker) => (
@@ -210,23 +216,32 @@ export function DashboardShell({
             ))}
           </div>
 
-          <div className="hidden md:flex items-center gap-3 shrink-0 text-slate-400">
-            <span>InvestAI Analytics Terminal</span>
+          <div className="hidden md:flex items-center gap-3 shrink-0 text-slate-400 font-medium">
+            <span>InvestAI Terminal</span>
           </div>
         </div>
       </div>
 
-      <main className="mx-auto flex w-full max-w-7xl flex-col gap-8 px-4 py-6">
-        {/* Top Header & US Market Search Bar */}
-        <header className="flex flex-col gap-4">
-          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div>
-              <h1 className="text-2xl font-bold tracking-tight text-white sm:text-3xl flex items-center gap-2">
-                AI Portfolio Analytics & Insights
-              </h1>
-              <p className="mt-1 text-sm text-slate-400">
-                เข้าสู่ระบบในชื่อ <span className="font-medium text-slate-200">{userLabel}</span>
-              </p>
+      <main className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-6">
+        {/* Top Branding Header, Prominent Global Search Bar & Navigation Sub-Menu */}
+        <header className="flex flex-col gap-5 border-b border-slate-800 pb-5">
+          {/* Brand Header Bar */}
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div className="flex items-center gap-3">
+              <div className="rounded-2xl bg-emerald-500/20 border border-emerald-500/30 p-2.5 text-emerald-400 shadow-lg shadow-emerald-950/50">
+                <Compass className="h-7 w-7" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-extrabold tracking-tight text-white sm:text-3xl flex items-center gap-2">
+                  InvestAI Navigator
+                  <span className="rounded-md bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 text-[11px] font-bold text-emerald-400 uppercase">
+                    PRO Terminal
+                  </span>
+                </h1>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  ระบบวิเคราะห์พอร์ตและหุ้น US Stocks & ETFs ภาษาไทย | เข้าใช้งาน: <span className="text-slate-200 font-semibold">{userLabel}</span>
+                </p>
+              </div>
             </div>
 
             <div className="flex flex-wrap items-center gap-3">
@@ -234,27 +249,93 @@ export function DashboardShell({
               <button
                 type="button"
                 onClick={() => setDialog({ kind: 'upload-document' })}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-brand-500/40 bg-brand-600/20 px-3.5 py-2 text-xs font-semibold text-brand-300 transition-colors hover:bg-brand-600/30 hover:border-brand-500"
+                className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-500/40 bg-emerald-600/20 px-3.5 py-2 text-xs font-bold text-emerald-300 transition-colors hover:bg-emerald-600/30 hover:border-emerald-400 shadow-md"
               >
-                <UploadCloud className="h-4 w-4 text-brand-400" />
+                <UploadCloud className="h-4 w-4 text-emerald-400" />
                 อัปโหลดเอกสาร / รูปภาพพอร์ต
               </button>
-
-              {/* Global Market Search with Autocomplete */}
-              <div className="flex-1 md:w-80">
-                <SymbolSearch onSelectSymbol={handleGlobalSelectSymbol} />
-              </div>
 
               <form action="/auth/signout" method="post" className="shrink-0">
                 <button
                   type="submit"
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-slate-800 bg-slate-900 px-3.5 py-2 text-sm font-medium text-slate-300 transition-colors hover:border-slate-700 hover:bg-slate-800"
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-slate-800 bg-slate-900 px-3.5 py-2 text-xs font-semibold text-slate-300 transition-colors hover:border-slate-700 hover:bg-slate-800"
                 >
                   <LogOut aria-hidden="true" className="h-4 w-4" />
                   ออกจากระบบ
                 </button>
               </form>
             </div>
+          </div>
+
+          {/* Prominent Global Search Bar */}
+          <div className="w-full">
+            <SymbolSearch onSelectSymbol={handleGlobalSelectSymbol} />
+          </div>
+
+          {/* Horizontal Navigation Sub-Header Menu */}
+          <div className="flex items-center justify-between overflow-x-auto pt-1 no-scrollbar border-t border-slate-800/80">
+            <div className="flex items-center gap-2 text-xs font-semibold">
+              <button
+                type="button"
+                onClick={() => setActiveMenuTab('dashboard')}
+                className={`inline-flex items-center gap-1.5 rounded-lg px-3.5 py-2 transition-all ${
+                  activeMenuTab === 'dashboard'
+                    ? 'bg-emerald-600 text-white shadow-md'
+                    : 'text-slate-400 hover:bg-slate-900 hover:text-slate-200'
+                }`}
+              >
+                <PieChart className="h-4 w-4" />
+                📊 แดชบอร์ด (Dashboard)
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveMenuTab('screener')}
+                className={`inline-flex items-center gap-1.5 rounded-lg px-3.5 py-2 transition-all ${
+                  activeMenuTab === 'screener'
+                    ? 'bg-emerald-600 text-white shadow-md'
+                    : 'text-slate-400 hover:bg-slate-900 hover:text-slate-200'
+                }`}
+              >
+                <BarChart2 className="h-4 w-4 text-emerald-400" />
+                📈 Screener
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveMenuTab('news')}
+                className={`inline-flex items-center gap-1.5 rounded-lg px-3.5 py-2 transition-all ${
+                  activeMenuTab === 'news'
+                    ? 'bg-emerald-600 text-white shadow-md'
+                    : 'text-slate-400 hover:bg-slate-900 hover:text-slate-200'
+                }`}
+              >
+                <Newspaper className="h-4 w-4 text-emerald-400" />
+                📰 ข่าว (News)
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveMenuTab('portfolio-cost')}
+                className={`inline-flex items-center gap-1.5 rounded-lg px-3.5 py-2 transition-all ${
+                  activeMenuTab === 'portfolio-cost'
+                    ? 'bg-emerald-600 text-white shadow-md'
+                    : 'text-slate-400 hover:bg-slate-900 hover:text-slate-200'
+                }`}
+              >
+                <Calculator className="h-4 w-4 text-emerald-400" />
+                💼 พอร์ต & ต้นทุน (Portfolio & Cost)
+              </button>
+            </div>
+
+            <button
+              type="button"
+              className="relative p-2 rounded-lg text-slate-400 hover:bg-slate-900 hover:text-slate-200 transition-colors"
+              title="Notifications"
+            >
+              <Bell className="h-4 w-4 text-emerald-400" />
+              <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+            </button>
           </div>
 
           <PortfolioSwitcher
