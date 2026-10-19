@@ -261,7 +261,7 @@ export function DashboardShell({
                   <span className="rounded-md bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 text-[11px] font-bold text-emerald-400 uppercase">
                     PRO Terminal
                   </span>
-                </h1>k
+                </h1>
                 <p className="text-xs text-slate-400 mt-0.5">
                   ระบบวิเคราะห์พอร์ตและหุ้น US Stocks & ETFs ภาษาไทย | เข้าใช้งาน: <span className="text-slate-200 font-semibold">{userLabel}</span>
                 </p>

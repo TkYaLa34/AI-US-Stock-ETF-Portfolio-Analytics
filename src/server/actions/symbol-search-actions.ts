@@ -59,6 +59,7 @@ export interface AssetIntelligenceData {
 
 const COMPREHENSIVE_US_MARKET_TICKERS: readonly MarketSymbolResult[] = [
   // High Growth, AI & Tech
+  { symbol: 'KO', name: 'The Coca-Cola Company', assetType: 'stock', exchange: 'NYSE', currency: 'USD' },
   { symbol: 'MU', name: 'Micron Technology Inc.', assetType: 'stock', exchange: 'NASDAQ', currency: 'USD' },
   { symbol: 'MRVL', name: 'Marvell Technology Inc.', assetType: 'stock', exchange: 'NASDAQ', currency: 'USD' },
   { symbol: 'NVDA', name: 'NVIDIA Corporation', assetType: 'stock', exchange: 'NASDAQ', currency: 'USD' },
@@ -87,7 +88,6 @@ const COMPREHENSIVE_US_MARKET_TICKERS: readonly MarketSymbolResult[] = [
   { symbol: 'VOO', name: 'Vanguard S&P 500 ETF', assetType: 'etf', exchange: 'NYSE Arca', currency: 'USD' },
   { symbol: 'QQQ', name: 'Invesco QQQ Trust Series 1', assetType: 'etf', exchange: 'NASDAQ', currency: 'USD' },
   { symbol: 'VTI', name: 'Vanguard Total Stock Market ETF', assetType: 'etf', exchange: 'NYSE Arca', currency: 'USD' },
-  { symbol: 'IWM', name: 'iShares Russell 2000 ETF', assetType: 'etf', exchange: 'NYSE Arca', currency: 'USD' },
 
   // Financials, Consumer & Healthcare
   { symbol: 'JPM', name: 'JPMorgan Chase & Co.', assetType: 'stock', exchange: 'NYSE', currency: 'USD' },
@@ -135,6 +135,90 @@ export async function searchUSMarketSymbolsAction(query: string): Promise<Market
 
 /** Rich institutional intelligence profiles for major US tickers */
 const INTELLIGENCE_DATABASE: Record<string, AssetIntelligenceData> = {
+  KO: {
+    symbol: 'KO',
+    name: 'The Coca-Cola Company',
+    assetType: 'stock',
+    exchange: 'NYSE',
+    currency: 'USD',
+    marketCap: '$285.4B',
+    peRatio: '24.2x (Forward)',
+    dividendYield: '3.12%',
+    forwardEps: '$2.88',
+    week52Low: 52.28,
+    week52High: 73.53,
+    currentPrice: 68.40,
+    projections: {
+      currentPrice: 68.40,
+      conservative12M: 65.00,
+      base12M: 76.00,
+      optimistic12M: 85.00,
+      conservative5Y: 82.00,
+      base5Y: 105.00,
+      optimistic5Y: 125.00,
+    },
+    analystRatings: {
+      consensus: 'Buy / Dividend King',
+      buyPercent: 78,
+      holdPercent: 20,
+      sellPercent: 2,
+      totalAnalysts: 26,
+      meanTargetPrice: 76.50,
+      upsidePercent: 11.8,
+    },
+    ourTake: {
+      summary: 'OUR TAKE: Coca-Cola (KO) คือหุ้นปันผลระดับ Dividend King แบรนด์แข็งแกร่งระดับโลก มีอำนาจกำหนดราคา (Pricing Power) และกระแสเงินสดมั่นคงสูง',
+      catalysts: [
+        'อัตราการเติบโตของยอดขายสุทธิในตลาดเกิดใหม่และสินค้ากลุ่มไร้น้ำตาล',
+        'ประวัติการเพิ่มปันผลต่อเนื่องยาวนานกว่า 60 ปี',
+      ],
+      riskFactors: ['ความผันผวนของอัตราแลกเปลี่ยนสกุลเงินต่างประเทศ', 'แรงกดดันจากต้นทุนบรรจุภัณฑ์'],
+      recommendedAllocationWeight: '5.0% - 10.0% (Defensive Dividend Core)',
+    },
+  },
+
+  NVDA: {
+    symbol: 'NVDA',
+    name: 'NVIDIA Corporation',
+    assetType: 'stock',
+    exchange: 'NASDAQ',
+    currency: 'USD',
+    marketCap: '$3.15T',
+    peRatio: '42.8x (Forward)',
+    dividendYield: '0.03%',
+    forwardEps: '$2.98',
+    week52Low: 45.20,
+    week52High: 140.76,
+    currentPrice: 128.50,
+    projections: {
+      currentPrice: 128.50,
+      conservative12M: 120.00,
+      base12M: 155.00,
+      optimistic12M: 185.00,
+      conservative5Y: 200.00,
+      base5Y: 280.00,
+      optimistic5Y: 360.00,
+    },
+    analystRatings: {
+      consensus: 'Strong Buy',
+      buyPercent: 88,
+      holdPercent: 10,
+      sellPercent: 2,
+      totalAnalysts: 44,
+      meanTargetPrice: 154.00,
+      upsidePercent: 19.8,
+    },
+    ourTake: {
+      summary: 'OUR TAKE: คลื่นการเติบโต Blackwell AI GPU และ CUDA Ecosystem ยังคงรักษาสถานะผู้นำเด็ดขาดในโครงสร้างพื้นฐาน AI',
+      catalysts: [
+        'ยอดการส่งมอบชิป Blackwell Ultra และ GB200 NVL72',
+        'การขยายตัวของ Sovereign AI และองค์กรขนาดใหญ่',
+      ],
+      riskFactors: ['มาตรการจำกัดการส่งออกชิปขั้นสูงไปยังจีน', 'ความเสี่ยงด้านความเข้มข้นของลูกค้าหลัก'],
+      recommendedAllocationWeight: '8.0% - 12.0% (Overweight Core)',
+    },
+  },
+
   AMD: {
     symbol: 'AMD',
     name: 'Advanced Micro Devices Inc.',
@@ -300,48 +384,6 @@ const INTELLIGENCE_DATABASE: Record<string, AssetIntelligenceData> = {
       ],
       riskFactors: ['ความผันผวนของห่วงโซ่อุปทานเซมิคอนดักเตอร์', 'การเลื่อนระยะเวลาเบิกจ่ายงบ Data Center'],
       recommendedAllocationWeight: '5.0% - 8.0% (Core Tech Growth)',
-    },
-  },
-
-  NVDA: {
-    symbol: 'NVDA',
-    name: 'NVIDIA Corporation',
-    assetType: 'stock',
-    exchange: 'NASDAQ',
-    currency: 'USD',
-    marketCap: '$3.15T',
-    peRatio: '42.8x (Forward)',
-    dividendYield: '0.03%',
-    forwardEps: '$2.98',
-    week52Low: 45.20,
-    week52High: 140.76,
-    currentPrice: 128.50,
-    projections: {
-      currentPrice: 128.50,
-      conservative12M: 120.00,
-      base12M: 155.00,
-      optimistic12M: 185.00,
-      conservative5Y: 200.00,
-      base5Y: 280.00,
-      optimistic5Y: 360.00,
-    },
-    analystRatings: {
-      consensus: 'Strong Buy',
-      buyPercent: 88,
-      holdPercent: 10,
-      sellPercent: 2,
-      totalAnalysts: 44,
-      meanTargetPrice: 154.00,
-      upsidePercent: 19.8,
-    },
-    ourTake: {
-      summary: 'OUR TAKE: คลื่นการเติบโต Blackwell AI GPU และ CUDA Ecosystem ยังคงรักษาสถานะผู้นำเด็ดขาดในโครงสร้างพื้นฐาน AI',
-      catalysts: [
-        'ยอดการส่งมอบชิป Blackwell Ultra และ GB200 NVL72',
-        'การขยายตัวของ Sovereign AI และองค์กรขนาดใหญ่',
-      ],
-      riskFactors: ['มาตรการจำกัดการส่งออกชิปขั้นสูงไปยังจีน', 'ความเสี่ยงด้านความเข้มข้นของลูกค้าหลัก'],
-      recommendedAllocationWeight: '8.0% - 12.0% (Overweight Core)',
     },
   },
 
