@@ -4,30 +4,28 @@
  * US Stock & ETF Portfolio Analytics Dashboard.
  *
  * Provides a clean vertical layout featuring:
- * 1. Top Navigation & US Market Search Bar
+ * 1. InvestAI Navigator Header, Prominent Global Search, and Interactive Horizontal Navigation Menu Tabs:
+ *    - 📊 แดชบอร์ด (Dashboard)
+ *    - 📈 Screener (Stock & ETF Market Screener Workbench)
+ *    - 📰 ข่าว (News & Institutional Smart Money Feed)
+ *    - 💼 พอร์ต & ต้นทุน (Portfolio & Cost Basis Analysis)
  * 2. Section 1: Portfolio Health & Summary Grid (Health Score, 4-Card Metrics, AI Rebalancing Advisor)
  * 3. Section 2: AI Institutional Intel & Smart Money Feed ("Exec Sum" & "OUR TAKE")
- * 4. Section 3: Sequential Asset Deep-Dive View & DCA Accumulation Cost Basis Simulator
- * 2. Section 1: Portfolio Health & Summary Grid (Health Score, 4-Card Metrics, AI Rebalancing Insights)
- * 3. Section 2: AI Institutional Intel & Smart Money Feed ("Exec Sum" & "OUR TAKE")
- * 4. Section 3: Sequential Asset Deep-Dive View (At a Glance, Analyst Consensus & Targets, 5-Year Forecast Chart, Social Sentiment, Earnings)
- * 5. Section 4: Collapsible AI Advisor Drawer
+ * 4. Section 3: US Stock & ETF Intelligence Workbench (247WallSt Target Scenarios & One-Click Portfolio Add)
+ * 5. Section 4: Sequential Asset Deep-Dive View & DCA Accumulation Cost Basis Simulator
+ * 6. Section 5: Collapsible AI Advisor Drawer
  */
 
 import { useState, type ReactNode } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import {
   Activity,
   BarChart3,
   BrainCircuit,
   Building2,
   Calculator,
-  ArrowLeftRight,
-  BrainCircuit,
-  Building2,
   CheckCircle2,
-  ChevronDown,
-  ChevronUp,
   Globe,
   LineChart,
   LogOut,
@@ -35,22 +33,22 @@ import {
   Plus,
   Scale,
   ShieldAlert,
-  Sparkles,
   Star,
   Target,
   ThumbsUp,
   Trash2,
   TrendingDown,
   TrendingUp,
+  UploadCloud,
   Users,
-  Trash2,
-  TrendingDown,
-  TrendingUp,
-  Users,
-  TrendingDown,
-  TrendingUp,
-  Trash2,
-  Zap,
+  Compass,
+  Bell,
+  Newspaper,
+  PieChart,
+  BarChart2,
+  Filter,
+  DollarSign,
+  ArrowUpRight,
 } from 'lucide-react';
 
 import { Alert } from '@/components/ui/alert';
@@ -78,8 +76,10 @@ import { ActivityFeed } from './activity-feed';
 import { AllocationList } from './allocation-list';
 import { AssetFormModal } from './asset-form-modal';
 import { ConfirmDialog } from './confirm-dialog';
+import { DocumentUploadModal } from './document-upload-modal';
 import { PortfolioFormModal } from './portfolio-form-modal';
 import { PositionsTable } from './positions-table';
+import { StockIntelligenceWorkbench } from './stock-intelligence-workbench';
 import { SummaryCards } from './summary-cards';
 import { SymbolSearch } from './symbol-search';
 import { TransactionFormModal } from './transaction-form-modal';
@@ -89,11 +89,10 @@ export type OpenDialog =
   | { kind: 'portfolio-form'; portfolioId: string | null }
   | { kind: 'asset-form'; assetId: string | null }
   | { kind: 'transaction' }
+  | { kind: 'upload-document' }
   | { kind: 'set-default'; portfolioId: string }
   | { kind: 'delete-portfolio'; portfolioId: string }
   | { kind: 'delete-asset'; assetId: string };
-
-export type DashboardTab = 'holdings' | 'watchlist';
 
 export interface DashboardShellProps {
   userLabel: string;
@@ -126,38 +125,27 @@ const INSTITUTIONAL_INTEL = [
   },
   {
     title: 'การหมุนเวียนกลุ่มอุตสาหกรรม (Sector Rotation) สู่ดัชนีหุ้นวงกว้าง',
-    detail: 'พบแรงขายทำกำไรในหุ้นกลุ่มพลังงานระยะสั้นเพื่อเปลี่ยนเข้าสะสม ETF ดัชนีหลักอย่าง S&P 500 และ NASDAQ 100',
+    execSum: 'พบแรงขายทำกำไรในหุ้นกลุ่มพลังงานระยะสั้นเพื่อเปลี่ยนเข้าสะสม ETF ดัชนีหลักอย่าง S&P 500 และ NASDAQ 100',
     ourTake: 'OUR TAKE: การกระจายความเสี่ยงสู่ ETF ดัชนีหลักช่วยลดความผันผวนของพอร์ตในช่วงผลประกอบการออก',
     type: 'Institutional Flow',
     time: '45 นาทีที่แล้ว',
-const WATCHLIST_SAMPLE = [
-  { symbol: 'SPY', name: 'SPDR S&P 500 ETF Trust', price: '$581.50', change: '+0.41%', isUp: true, type: 'ETF' },
-  { symbol: 'QQQ', name: 'Invesco QQQ Trust Series 1', price: '$492.30', change: '+0.63%', isUp: true, type: 'ETF' },
-  { symbol: 'VOO', name: 'Vanguard S&P 500 ETF', price: '$533.80', change: '+0.42%', isUp: true, type: 'ETF' },
-  { symbol: 'AAPL', name: 'Apple Inc.', price: '$231.30', change: '+1.25%', isUp: true, type: 'Stock' },
-  { symbol: 'MSFT', name: 'Microsoft Corporation', price: '$418.25', change: '-0.18%', isUp: false, type: 'Stock' },
-  { symbol: 'NVDA', name: 'NVIDIA Corporation', price: '$134.80', change: '+2.14%', isUp: true, type: 'Stock' },
-];
-
-const INSTITUTIONAL_INTEL = [
-  {
-    title: 'สถาบันเพิ่มน้ำหนักลงทุนในกลุ่ม Semiconductor & AI Infrastructure',
-    detail: 'กองทุนสถาบันรายใหญ่เพิ่มสถานะซื้อสะสม NVDA, AVGO และ QQQ อย่างต่อเนื่องในสัปดาห์นี้',
-    type: 'Block Trade / Accumulation',
-    time: '15 นาทีที่แล้ว',
-  },
-  {
-    title: 'การลดความเสี่ยงสัดส่วนหมวดพลังงานก่อนรายงานผลประกอบการ',
-    detail: 'มีการปรับลดสถานะขายทำกำไรในหุ้นกลุ่มพลังงานขนาดใหญ่ (XOM, CVX) เพื่อเก็งกำไรในดัชนี S&P 500',
-    type: 'Sector Rotation',
-    time: '1 ชั่วโมงที่แล้ว',
   },
   {
     title: 'การไหลเข้าของกระแสเงินทุนสถาบันใน Vanguard & SPDR Index ETFs',
-    detail: 'ยอดสุทธิการซื้อสะสม VOO และ SPY พุ่งสูงขึ้น ชี้แจงมุมมองเชิงบวกต่อตลาดหุ้นสหรัฐฯ ในระยะกลาง',
+    execSum: 'ยอดสุทธิการซื้อสะสม VOO และ SPY พุ่งสูงขึ้น ชี้แจงมุมมองเชิงบวกต่อตลาดหุ้นสหรัฐฯ ในระยะกลาง',
+    ourTake: 'OUR TAKE: สะท้อนกระแส Smart Money หนุนการสะสมสะสมดัชนีหุ้นสหรัฐฯ',
     type: 'Institutional ETF Flow',
     time: '3 ชั่วโมงที่แล้ว',
   },
+];
+
+const SCREENER_STOCKS = [
+  { symbol: 'NVDA', name: 'NVIDIA Corporation', pe: '42.8x', mcap: '$3.15T', yieldPct: '0.03%', sector: 'Semiconductor', upside: '+19.8%' },
+  { symbol: 'MU', name: 'Micron Technology Inc.', pe: '18.5x', mcap: '$118.2B', yieldPct: '0.42%', sector: 'Memory Chip', upside: '+33.4%' },
+  { symbol: 'PLTR', name: 'Palantir Technologies', pe: '72.5x', mcap: '$98.4B', yieldPct: '0.00%', sector: 'AI Software', upside: '+18.8%' },
+  { symbol: 'MRVL', name: 'Marvell Technology', pe: '32.4x', mcap: '$68.4B', yieldPct: '0.34%', sector: 'Custom ASIC', upside: '+20.4%' },
+  { symbol: 'JEPQ', name: 'JPMorgan NASDAQ Premium', pe: '24.5x', mcap: '$16.2B', yieldPct: '9.45%', sector: 'Covered Call ETF', upside: '+7.9%' },
+  { symbol: 'VOO', name: 'Vanguard S&P 500 ETF', pe: '26.2x', mcap: '$520.0B', yieldPct: '1.32%', sector: 'Broad Index', upside: '+8.0%' },
 ];
 
 export function DashboardShell({
@@ -173,9 +161,15 @@ export function DashboardShell({
   readError,
   readErrorDetail,
 }: DashboardShellProps) {
+  const router = useRouter();
   const [dialog, setDialog] = useState<OpenDialog>({ kind: 'none' });
+  const [activeMenuTab, setActiveMenuTab] = useState<'dashboard' | 'screener' | 'news' | 'portfolio-cost'>('dashboard');
+  const [screenerCategory, setScreenerCategory] = useState<'all' | 'ai-tech' | 'etf-income'>('all');
   const [isAiDrawerOpen, setIsAiDrawerOpen] = useState<boolean>(true);
-  const [selectedDeepDiveSymbol, setSelectedDeepDiveSymbol] = useState<string>('NVDA');
+  const [selectedDeepDiveSymbol, setSelectedDeepDiveSymbol] = useState<string>('MRVL');
+
+  // OCR Extracted Insights Banner State
+  const [extractedOcrNotice, setExtractedOcrNotice] = useState<string | null>(null);
 
   // DCA Simulator State
   const [dcaCurrentQty, setDcaCurrentQty] = useState<number>(100);
@@ -192,20 +186,38 @@ export function DashboardShell({
     targetPriceThreshold: dcaTargetThreshold,
   });
 
-  const close = () => setDialog({ kind: 'none' });
+  const closeDialog = () => setDialog({ kind: 'none' });
   const currency = selectedPortfolio?.base_currency ?? 'USD';
 
   const handleGlobalSelectSymbol = (item: MarketSymbolResult) => {
     setSelectedDeepDiveSymbol(item.symbol);
+    setActiveMenuTab('dashboard');
   };
+
+  const handleSyncSuccess = (targetPortfolioId: string, message: string) => {
+    setExtractedOcrNotice(message);
+    router.push(`${DASHBOARD_PATH}?${PORTFOLIO_QUERY_PARAM}=${targetPortfolioId}`);
+    router.refresh();
+    setDialog({ kind: 'none' });
+  };
+
+  const handleRefreshPortfolioData = () => {
+    router.refresh();
+  };
+
+  const filteredScreenerStocks = SCREENER_STOCKS.filter((s) => {
+    if (screenerCategory === 'ai-tech') return s.sector.includes('Semiconductor') || s.sector.includes('AI') || s.sector.includes('ASIC');
+    if (screenerCategory === 'etf-income') return s.sector.includes('ETF') || s.sector.includes('Index');
+    return true;
+  });
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 font-sans">
       {/* 1. Real-time Market Ticker Header */}
-      <div className="border-b border-slate-800 bg-slate-900/90 text-xs text-slate-300 backdrop-blur sticky top-0 z-20">
+      <div className="border-b border-slate-800 bg-slate-900/90 text-xs text-slate-300 backdrop-blur sticky top-0 z-30">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-1.5">
           <div className="flex items-center gap-4 overflow-x-auto py-0.5 no-scrollbar">
-            <span className="flex items-center gap-1.5 font-semibold text-brand-400 shrink-0">
+            <span className="flex items-center gap-1.5 font-bold text-emerald-400 shrink-0">
               <Globe className="h-3.5 w-3.5" /> US Markets:
             </span>
             {MARKET_TICKERS.map((ticker) => (
@@ -228,41 +240,126 @@ export function DashboardShell({
             ))}
           </div>
 
-          <div className="hidden md:flex items-center gap-3 shrink-0 text-slate-400">
-            <span>InvestAI Analytics Terminal</span>
+          <div className="hidden md:flex items-center gap-3 shrink-0 text-slate-400 font-medium">
+            <span>InvestAI Terminal</span>
           </div>
         </div>
       </div>
 
-      <main className="mx-auto flex w-full max-w-7xl flex-col gap-8 px-4 py-6">
-        {/* Top Header & US Market Search Bar */}
-        <header className="flex flex-col gap-4">
-          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div>
-              <h1 className="text-2xl font-bold tracking-tight text-white sm:text-3xl flex items-center gap-2">
-                AI Portfolio Analytics & Insights
-              </h1>
-              <p className="mt-1 text-sm text-slate-400">
-                เข้าสู่ระบบในชื่อ <span className="font-medium text-slate-200">{userLabel}</span>
-              </p>
+      <main className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-6">
+        {/* Top Branding Header, Prominent Global Search Bar & Interactive Sub-Menu Tabs */}
+        <header className="flex flex-col gap-5 border-b border-slate-800 pb-5">
+          {/* Brand Header Bar */}
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div className="flex items-center gap-3">
+              <div className="rounded-2xl bg-emerald-500/20 border border-emerald-500/30 p-2.5 text-emerald-400 shadow-lg shadow-emerald-950/50">
+                <Compass className="h-7 w-7" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-extrabold tracking-tight text-white sm:text-3xl flex items-center gap-2">
+                  InvestAI Navigator
+                  <span className="rounded-md bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 text-[11px] font-bold text-emerald-400 uppercase">
+                    PRO Terminal
+                  </span>
+                </h1>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  ระบบวิเคราะห์พอร์ตและหุ้น US Stocks & ETFs ภาษาไทย | เข้าใช้งาน: <span className="text-slate-200 font-semibold">{userLabel}</span>
+                </p>
+              </div>
             </div>
 
-            <div className="flex items-center gap-3">
-              {/* Pillar 1: Global Market Search with Autocomplete */}
-              <div className="flex-1 md:w-80">
-                <SymbolSearch onSelectSymbol={handleGlobalSelectSymbol} />
-              </div>
+            <div className="flex flex-wrap items-center gap-3">
+              {/* Document/Image Upload Trigger Button */}
+              <button
+                type="button"
+                onClick={() => setDialog({ kind: 'upload-document' })}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-500/40 bg-emerald-600/20 px-3.5 py-2 text-xs font-bold text-emerald-300 transition-colors hover:bg-emerald-600/30 hover:border-emerald-400 shadow-md"
+              >
+                <UploadCloud className="h-4 w-4 text-emerald-400" />
+                อัปโหลดเอกสาร / รูปภาพพอร์ต
+              </button>
 
               <form action="/auth/signout" method="post" className="shrink-0">
                 <button
                   type="submit"
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-slate-800 bg-slate-900 px-3.5 py-2 text-sm font-medium text-slate-300 transition-colors hover:border-slate-700 hover:bg-slate-800"
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-slate-800 bg-slate-900 px-3.5 py-2 text-xs font-semibold text-slate-300 transition-colors hover:border-slate-700 hover:bg-slate-800"
                 >
                   <LogOut aria-hidden="true" className="h-4 w-4" />
                   ออกจากระบบ
                 </button>
               </form>
             </div>
+          </div>
+
+          {/* Prominent Global Search Bar */}
+          <div className="w-full">
+            <SymbolSearch onSelectSymbol={handleGlobalSelectSymbol} />
+          </div>
+
+          {/* Horizontal Navigation Sub-Header Interactive Menu Buttons */}
+          <div className="flex items-center justify-between overflow-x-auto pt-1 no-scrollbar border-t border-slate-800/80">
+            <div className="flex items-center gap-2 text-xs font-semibold">
+              <button
+                type="button"
+                onClick={() => setActiveMenuTab('dashboard')}
+                className={`inline-flex items-center gap-1.5 rounded-lg px-3.5 py-2 transition-all ${
+                  activeMenuTab === 'dashboard'
+                    ? 'bg-emerald-600 text-white shadow-md'
+                    : 'text-slate-400 hover:bg-slate-900 hover:text-slate-200'
+                }`}
+              >
+                <PieChart className="h-4 w-4" />
+                📊 แดชบอร์ด (Dashboard)
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveMenuTab('screener')}
+                className={`inline-flex items-center gap-1.5 rounded-lg px-3.5 py-2 transition-all ${
+                  activeMenuTab === 'screener'
+                    ? 'bg-emerald-600 text-white shadow-md'
+                    : 'text-slate-400 hover:bg-slate-900 hover:text-slate-200'
+                }`}
+              >
+                <BarChart2 className="h-4 w-4 text-emerald-400" />
+                📈 Screener
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveMenuTab('news')}
+                className={`inline-flex items-center gap-1.5 rounded-lg px-3.5 py-2 transition-all ${
+                  activeMenuTab === 'news'
+                    ? 'bg-emerald-600 text-white shadow-md'
+                    : 'text-slate-400 hover:bg-slate-900 hover:text-slate-200'
+                }`}
+              >
+                <Newspaper className="h-4 w-4 text-emerald-400" />
+                📰 ข่าว (News)
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveMenuTab('portfolio-cost')}
+                className={`inline-flex items-center gap-1.5 rounded-lg px-3.5 py-2 transition-all ${
+                  activeMenuTab === 'portfolio-cost'
+                    ? 'bg-emerald-600 text-white shadow-md'
+                    : 'text-slate-400 hover:bg-slate-900 hover:text-slate-200'
+                }`}
+              >
+                <Calculator className="h-4 w-4 text-emerald-400" />
+                💼 พอร์ต & ต้นทุน (Portfolio & Cost)
+              </button>
+            </div>
+
+            <button
+              type="button"
+              className="relative p-2 rounded-lg text-slate-400 hover:bg-slate-900 hover:text-slate-200 transition-colors"
+              title="Notifications"
+            >
+              <Bell className="h-4 w-4 text-emerald-400" />
+              <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+            </button>
           </div>
 
           <PortfolioSwitcher
@@ -279,331 +376,149 @@ export function DashboardShell({
           <Alert tone="error" message={readError} detail={readErrorDetail} />
         ) : null}
 
-        {/* SECTION 1: Portfolio Health & Summary Grid */}
-        <section className="flex flex-col gap-4">
-          <h2 className="text-lg font-bold text-slate-100 flex items-center gap-2">
-            <Activity className="h-5 w-5 text-brand-400" />
-            Section 1: ภาพรวมพอร์ตโฟลิโอและดัชนีสุขภาพ (Portfolio Health & AI Rebalancing)
-          </h2>
+        {extractedOcrNotice ? (
+          <Alert tone="success" message={extractedOcrNotice} />
+        ) : null}
 
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            {/* AI Portfolio Health Score */}
-            <div className="rounded-xl border border-brand-500/30 bg-gradient-to-br from-brand-950/40 via-slate-900 to-slate-900 p-5 flex flex-col justify-between">
+        {/* Dynamic Content Rendering Based on Active Menu Tab */}
+        {activeMenuTab === 'screener' ? (
+          <section className="rounded-2xl border border-slate-800 bg-slate-900 p-6 flex flex-col gap-6 shadow-xl">
+            <div className="flex flex-col md:flex-row md:items-center justify-between border-b border-slate-800 pb-4 gap-4">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-                  AI Portfolio Health Score
-                </p>
-                <div className="mt-3 flex items-baseline gap-1">
-                  <span className="text-4xl font-extrabold text-emerald-400">88</span>
-                  <span className="text-sm font-semibold text-slate-400">/ 100</span>
-                </div>
-              </div>
-              <p className="mt-3 text-xs text-emerald-400 flex items-center gap-1 font-medium">
-                <CheckCircle2 className="h-4 w-4 inline" /> โครงสร้างพอร์ตมีการกระจายความเสี่ยงดีเยี่ยม
-              </p>
-            </div>
-
-            {/* Risk Assessment */}
-            <div className="rounded-xl border border-slate-800 bg-slate-900 p-5 flex flex-col justify-between">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-                  การประเมินความเสี่ยง (Risk Metric)
-                </p>
-                <p className="mt-3 text-lg font-bold text-amber-300 flex items-center gap-1.5">
-                  <ShieldAlert className="h-5 w-5" /> ปานกลาง - ค่อนข้างสูง
+                <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                  <BarChart2 className="h-5 w-5 text-emerald-400" />
+                  US Stock & ETF Screener Workbench
+                </h2>
+                <p className="text-xs text-slate-400 mt-1">
+                  คัดกรองหุ้นและ ETF สหรัฐฯ ด้วยตัวกรอง Market Cap, P/E Ratio, Dividend Yield และกลุ่มอุตสาหกรรม
                 </p>
               </div>
-              <p className="mt-2 text-xs text-slate-400">
-                เน้นหุ้นกลุ่มเทคโนโลยีและกองทุน ETF สหรัฐฯ
-              </p>
+
+              {/* Category Filter Pills */}
+              <div className="flex items-center gap-2 text-xs font-semibold">
+                <button
+                  type="button"
+                  onClick={() => setScreenerCategory('all')}
+                  className={`rounded-lg px-3 py-1.5 transition-colors ${
+                    screenerCategory === 'all' ? 'bg-emerald-600 text-white' : 'bg-slate-950 text-slate-300 border border-slate-800'
+                  }`}
+                >
+                  ทั้งหมด ({SCREENER_STOCKS.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setScreenerCategory('ai-tech')}
+                  className={`rounded-lg px-3 py-1.5 transition-colors ${
+                    screenerCategory === 'ai-tech' ? 'bg-emerald-600 text-white' : 'bg-slate-950 text-slate-300 border border-slate-800'
+                  }`}
+                >
+                  ชิป AI & Semiconductor
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setScreenerCategory('etf-income')}
+                  className={`rounded-lg px-3 py-1.5 transition-colors ${
+                    screenerCategory === 'etf-income' ? 'bg-emerald-600 text-white' : 'bg-slate-950 text-slate-300 border border-slate-800'
+                  }`}
+                >
+                  ETFs & ปันผลสูง
+                </button>
+              </div>
             </div>
 
-            {/* Feature 1: AI Portfolio Rebalancing Advisor & Allocation Checker */}
-            <div className="rounded-xl border border-slate-800 bg-slate-900 p-5 md:col-span-2 flex flex-col justify-between">
+            <div className="overflow-x-auto rounded-xl border border-slate-800 bg-slate-950">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-900 text-slate-400 uppercase text-[10px] border-b border-slate-800">
+                  <tr>
+                    <th className="p-3">สัญลักษณ์ (Symbol)</th>
+                    <th className="p-3">ชื่อบริษัท / กองทุน</th>
+                    <th className="p-3">กลุ่มอุตสาหกรรม</th>
+                    <th className="p-3 text-right">Market Cap</th>
+                    <th className="p-3 text-right">P/E Ratio</th>
+                    <th className="p-3 text-right">Dividend Yield</th>
+                    <th className="p-3 text-right">Upside Target</th>
+                    <th className="p-3 text-center">วิเคราะห์เจาะลึก</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800 text-slate-200 font-medium">
+                  {filteredScreenerStocks.map((item) => (
+                    <tr key={item.symbol} className="hover:bg-slate-900/60 transition-colors">
+                      <td className="p-3 font-bold text-emerald-400 text-sm">{item.symbol}</td>
+                      <td className="p-3 text-slate-200">{item.name}</td>
+                      <td className="p-3 text-slate-400">{item.sector}</td>
+                      <td className="p-3 text-right font-bold text-slate-100">{item.mcap}</td>
+                      <td className="p-3 text-right text-slate-300">{item.pe}</td>
+                      <td className="p-3 text-right text-emerald-400 font-semibold">{item.yieldPct}</td>
+                      <td className="p-3 text-right font-bold text-emerald-400">{item.upside}</td>
+                      <td className="p-3 text-center">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedDeepDiveSymbol(item.symbol);
+                            setActiveMenuTab('dashboard');
+                          }}
+                          className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-400 hover:text-emerald-300 underline"
+                        >
+                          เปิดวิเคราะห์ <ArrowUpRight className="h-3 w-3" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        ) : activeMenuTab === 'news' ? (
+          <section className="rounded-2xl border border-slate-800 bg-slate-900 p-6 flex flex-col gap-6 shadow-xl">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-4">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-wider text-brand-300 flex items-center gap-1.5">
-                  <Scale className="h-4 w-4" /> AI Portfolio Rebalancing Advisor & Allocation Checker
+                <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                  <Newspaper className="h-5 w-5 text-emerald-400" />
+                  Institutional Market News & Smart Money Feed
+                </h2>
+                <p className="text-xs text-slate-400 mt-1">
+                  ข่าวสารตลาดหุ้นสหรัฐฯ และกระแสเงินทุนสถาบันแบบเรียลไทม์ พร้อมสรุปผู้บริหาร "OUR TAKE"
                 </p>
-                <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
-                  <div className="rounded bg-slate-950/80 p-2.5 border border-slate-800">
-                    <span className="text-slate-400 block font-medium">สัดส่วนปัจจุบัน (Tech Heavy)</span>
-                    <span className="text-amber-300 font-bold mt-0.5 block">45.0% Overweight (+10%)</span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {INSTITUTIONAL_INTEL.map((intel) => (
+                <div
+                  key={intel.title}
+                  className="rounded-xl border border-slate-800 bg-slate-950 p-5 flex flex-col justify-between space-y-4 hover:border-slate-700 transition-colors"
+                >
+                  <div>
+                    <div className="flex items-center justify-between text-[11px] font-semibold text-emerald-400">
+                      <span>{intel.type}</span>
+                      <span className="text-slate-500 font-normal">{intel.time}</span>
+                    </div>
+                    <h3 className="mt-2.5 font-bold text-sm text-slate-100 leading-snug">
+                      {intel.title}
+                    </h3>
+                    <p className="mt-2 text-xs text-slate-300 leading-relaxed">
+                      <span className="font-semibold text-slate-200">Exec Sum:</span> {intel.execSum}
+                    </p>
                   </div>
-                  <div className="rounded bg-slate-950/80 p-2.5 border border-slate-800">
-                    <span className="text-slate-400 block font-medium">เป้าหมายสมดุล (Target ETF Index)</span>
-                    <span className="text-emerald-400 font-bold mt-0.5 block">35.0% Index Core</span>
+                  <div className="rounded-lg bg-emerald-950/40 border border-emerald-500/20 p-3 text-xs text-emerald-200 font-medium leading-relaxed">
+                    {intel.ourTake}
                   </div>
                 </div>
-                <p className="mt-2.5 text-xs text-slate-300 leading-relaxed">
-                  คำแนะนำ AI: ทยอยสะสมดัชนีวงกว้างเช่น <span className="font-bold text-white">VOO</span> หรือ <span className="font-bold text-white">SPY</span> เพื่อปรับน้ำหนักความเสี่ยงให้อยู่ในกรอบสมดุล
+              ))}
+            </div>
+          </section>
+        ) : activeMenuTab === 'portfolio-cost' ? (
+          <section className="rounded-2xl border border-slate-800 bg-slate-900 p-6 flex flex-col gap-6 shadow-xl">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+              <div>
+                <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                  <Calculator className="h-5 w-5 text-emerald-400" />
+                  รายการถือครองและวิเคราะห์ต้นทุนเฉลี่ย (Portfolio Holdings & Cost Basis)
+                </h2>
+                <p className="text-xs text-slate-400 mt-1">
+                  ตารางแสดงหลักทรัพย์ทั้งหมดในพอร์ต และประวัติรายการซื้อ/ขายสะสม
                 </p>
               </div>
-              <p className="mt-2 text-[11px] text-slate-500 border-t border-slate-800 pt-2">
-                ประมวลผลสัดส่วนจากรายการถือครองล่าสุด ({positions.length} รายการ)
-              </p>
-            </div>
-          </div>
-
-          {/* 4-Card Summary Grid */}
-          {summary ? <SummaryCards summary={summary} /> : null}
-        </section>
-
-        {/* Feature 2: DCA / Accumulation Cost & Upside Price Projection Calculator */}
-        <section className="rounded-xl border border-slate-800 bg-slate-900 p-5 flex flex-col gap-4">
-          <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-            <h2 className="text-lg font-bold text-slate-100 flex items-center gap-2">
-              <Calculator className="h-5 w-5 text-brand-400" />
-              DCA / Accumulation Cost Basis & Upside Protection Simulator
-            </h2>
-            <span className="text-xs text-slate-400">คำนวณต้นทุนเฉลี่ยและกรอบนิรภัยกำไร (% Upside)</span>
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 text-xs">
-            {/* Input Controls */}
-            <div className="space-y-3 bg-slate-950/60 p-4 rounded-lg border border-slate-800">
-              <h3 className="font-bold text-slate-200 text-sm">จำลองการสะสมหุ้น (Scaling In)</h3>
-
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="text-slate-400 block mb-1">จำนวนที่ถืออยู่</label>
-                  <input
-                    type="number"
-                    value={dcaCurrentQty}
-                    onChange={(e) => setDcaCurrentQty(Number(e.target.value))}
-                    className="w-full rounded border border-slate-800 bg-slate-900 p-2 text-slate-100"
-                  />
-                </div>
-                <div>
-                  <label className="text-slate-400 block mb-1">ต้นทุนเฉลี่ยปัจจุบัน ($)</label>
-                  <input
-                    type="number"
-                    value={dcaCurrentCost}
-                    onChange={(e) => setDcaCurrentCost(Number(e.target.value))}
-                    className="w-full rounded border border-slate-800 bg-slate-900 p-2 text-slate-100"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="text-slate-400 block mb-1">จำนวนที่จะทยอยสะสมเพิ่ม</label>
-                  <input
-                    type="number"
-                    value={dcaNewQty}
-                    onChange={(e) => setDcaNewQty(Number(e.target.value))}
-                    className="w-full rounded border border-slate-800 bg-slate-900 p-2 text-slate-100"
-                  />
-                </div>
-                <div>
-                  <label className="text-slate-400 block mb-1">ราคาที่เข้าซื้อ ($)</label>
-                  <input
-                    type="number"
-                    value={dcaNewPrice}
-                    onChange={(e) => setDcaNewPrice(Number(e.target.value))}
-                    className="w-full rounded border border-slate-800 bg-slate-900 p-2 text-slate-100"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="text-slate-400 block mb-1">ราคาเป้าหมายประเมิน (Target Price Threshold $)</label>
-                <input
-                  type="number"
-                  value={dcaTargetThreshold}
-                  onChange={(e) => setDcaTargetThreshold(Number(e.target.value))}
-                  className="w-full rounded border border-slate-800 bg-slate-900 p-2 text-slate-100"
-                />
-              </div>
-            </div>
-
-            {/* Projection Metric Output */}
-            <div className="lg:col-span-2 bg-slate-950/60 p-4 rounded-lg border border-slate-800 flex flex-col justify-between space-y-4">
-              <h3 className="font-bold text-slate-200 text-sm">ผลการจำลองต้นทุนและ Upside Margin</h3>
-
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                <div className="rounded bg-slate-900 p-3 border border-slate-800">
-                  <span className="text-slate-400 block">จำนวนหุ้นใหม่ทั้งหมด</span>
-                  <span className="text-base font-bold text-white mt-1 block">
-                    {formatQuantity(dcaResult.newTotalQuantity)} หุ้น
-                  </span>
-                </div>
-                <div className="rounded bg-slate-900 p-3 border border-slate-800">
-                  <span className="text-slate-400 block">ต้นทุนเฉลี่ยใหม่ประเมิน</span>
-                  <span className="text-base font-bold text-brand-300 mt-1 block">
-                    {formatMoney(dcaResult.newAverageCost, currency)}
-                  </span>
-                </div>
-                <div className="rounded bg-slate-900 p-3 border border-slate-800">
-                  <span className="text-slate-400 block">ระยะห่างถึงราคาเป้าหมาย</span>
-                  <span
-                    className={`text-base font-bold mt-1 block ${
-                      dcaResult.isBelowTargetThreshold ? 'text-emerald-400' : 'text-red-400'
-                    }`}
-                  >
-                    +{dcaResult.headroomToTargetPercent.toFixed(1)}% Upside
-                  </span>
-                </div>
-                <div className="rounded bg-slate-900 p-3 border border-slate-800">
-                  <span className="text-slate-400 block">สถานะกรอบความปลอดภัย</span>
-                  <span
-                    className={`text-xs font-bold mt-1.5 block ${
-                      dcaResult.isBelowTargetThreshold ? 'text-emerald-400' : 'text-amber-400'
-                    }`}
-                  >
-                    {dcaResult.isBelowTargetThreshold ? '✓ ต่ำกว่าราคาเป้าหมาย' : '⚠ เกินกรอบความปลอดภัย'}
-                  </span>
-                </div>
-              </div>
-
-              <div className="rounded bg-brand-950/30 border border-brand-500/20 p-3 text-slate-300 leading-relaxed">
-                <span className="font-bold text-brand-300">AI Safety Audit:</span> การทยอยสะสมเพิ่มเติมจำนวน {dcaNewQty} หุ้น ที่ราคา ${dcaNewPrice} จะส่งผลให้ต้นทุนเฉลี่ยปรับขึ้นเป็น ${dcaResult.newAverageCost.toFixed(2)} ซึ่งยังคงมี Margin of Safety ห่างจากราคาเป้าหมายประเมินที่ ${dcaTargetThreshold} อยู่ {dcaResult.headroomToTargetPercent.toFixed(1)}%
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* SECTION 2: AI Institutional Intel & Smart Money Feed */}
-        <section className="rounded-xl border border-slate-800 bg-slate-900 p-5 flex flex-col gap-4">
-          <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-            <h2 className="text-lg font-bold text-slate-100 flex items-center gap-2">
-              <Building2 className="h-5 w-5 text-brand-400" />
-              Section 2: AI Institutional Intel & Smart Money Brief
-            </h2>
-            <span className="text-xs text-slate-400 flex items-center gap-1">
-              <Activity className="h-3.5 w-3.5 text-emerald-400" /> ข้อมูลประมวลผล AI ล่าสุด
-            </span>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {INSTITUTIONAL_INTEL.map((intel) => (
-              <div
-                key={intel.title}
-                className="rounded-lg border border-slate-800/80 bg-slate-950/60 p-4 flex flex-col justify-between"
-              >
-                <div>
-                  <div className="flex items-center justify-between text-[11px] font-semibold text-brand-300">
-                    <span>{intel.type}</span>
-                    <span className="text-slate-500 font-normal">{intel.time}</span>
-                  </div>
-                  <h3 className="mt-2 font-bold text-sm text-slate-100 leading-snug">
-                    {intel.title}
-                  </h3>
-                  <p className="mt-2 text-xs text-slate-300 leading-relaxed">
-                    <span className="font-semibold text-slate-200">Exec Sum:</span> {intel.execSum || intel.detail}
-                  </p>
-                </div>
-                <div className="mt-3 rounded bg-brand-950/40 border border-brand-500/20 p-2.5 text-xs text-brand-200 font-medium">
-                  {intel.ourTake}
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        {/* SECTION 3: Sequential Asset Deep-Dive View */}
-        <section className="rounded-xl border border-slate-800 bg-slate-900 p-5 flex flex-col gap-6">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between border-b border-slate-800 pb-3 gap-2">
-            <h2 className="text-lg font-bold text-slate-100 flex items-center gap-2">
-              <BarChart3 className="h-5 w-5 text-brand-400" />
-              Section 3: วิเคราะห์เจาะลึกรายหลักทรัพย์ (Asset Deep-Dive Analytics) — {selectedDeepDiveSymbol}
-            </h2>
-            <div className="flex items-center gap-2 text-xs text-slate-400">
-              <span>เลือกหลักทรัพย์:</span>
-              <select
-                value={selectedDeepDiveSymbol}
-                onChange={(e) => setSelectedDeepDiveSymbol(e.target.value)}
-                className="rounded border border-slate-800 bg-slate-950 px-2.5 py-1 text-slate-200 focus:border-brand-500 focus:outline-none"
-              >
-                <option value="NVDA">NVDA — NVIDIA Corp.</option>
-                <option value="AAPL">AAPL — Apple Inc.</option>
-                <option value="MSFT">MSFT — Microsoft Corp.</option>
-                <option value="VOO">VOO — Vanguard S&P 500 ETF</option>
-                <option value="QQQ">QQQ — Invesco QQQ Trust</option>
-              </select>
-            </div>
-          </div>
-
-          {/* Deep Dive Grid */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* 1. At a Glance & Key Data */}
-            <div className="rounded-lg border border-slate-800 bg-slate-950/60 p-4 flex flex-col gap-3">
-              <h3 className="text-sm font-bold text-slate-200 flex items-center gap-1.5">
-                <LineChart className="h-4 w-4 text-brand-400" /> Key Valuation & Fundamentals
-              </h3>
-              <dl className="grid grid-cols-2 gap-2 text-xs">
-                <div className="rounded bg-slate-900 p-2">
-                  <dt className="text-slate-400">Market Cap</dt>
-                  <dd className="font-bold text-slate-100 mt-0.5">$3.32T</dd>
-                </div>
-                <div className="rounded bg-slate-900 p-2">
-                  <dt className="text-slate-400">P/E Ratio</dt>
-                  <dd className="font-bold text-slate-100 mt-0.5">48.5x</dd>
-                </div>
-                <div className="rounded bg-slate-900 p-2">
-                  <dt className="text-slate-400">EPS (TTM)</dt>
-                  <dd className="font-bold text-slate-100 mt-0.5">$2.78</dd>
-                </div>
-                <div className="rounded bg-slate-900 p-2">
-                  <dt className="text-slate-400">52-Wk Range</dt>
-                  <dd className="font-bold text-slate-100 mt-0.5">$45.20 - $140.76</dd>
-                </div>
-              </dl>
-            </div>
-
-            {/* 2. Analyst Consensus Ring & Targets */}
-            <div className="rounded-lg border border-slate-800 bg-slate-950/60 p-4 flex flex-col gap-3">
-              <h3 className="text-sm font-bold text-slate-200 flex items-center gap-1.5">
-                <Target className="h-4 w-4 text-emerald-400" /> Analyst Consensus & Price Target
-              </h3>
-              <div className="flex items-center justify-between text-xs">
-                <span className="font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded">
-                  Consensus: Strong Buy
-                </span>
-                <span className="text-slate-400">นักวิเคราะห์ 42 ท่าน</span>
-              </div>
-              <div className="text-xs space-y-1.5">
-                <div className="flex justify-between text-slate-300">
-                  <span>ราคาเป้าหมายเฉลี่ย (Mean Target):</span>
-                  <span className="font-bold text-white">$155.00 (+15.0%)</span>
-                </div>
-                <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden flex">
-                  <div className="bg-emerald-500 h-full w-[80%]" title="Buy 80%" />
-                  <div className="bg-amber-500 h-full w-[15%]" title="Hold 15%" />
-                  <div className="bg-red-500 h-full w-[5%]" title="Sell 5%" />
-                </div>
-                <p className="text-[11px] text-slate-400 text-right">80% Buy / 15% Hold / 5% Sell</p>
-              </div>
-            </div>
-
-            {/* 3. Social Sentiment & Retail Mood */}
-            <div className="rounded-lg border border-slate-800 bg-slate-950/60 p-4 flex flex-col gap-3">
-              <h3 className="text-sm font-bold text-slate-200 flex items-center gap-1.5">
-                <ThumbsUp className="h-4 w-4 text-blue-400" /> Social Sentiment & Mood
-              </h3>
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs text-slate-400">Sentiment Score</p>
-                  <p className="text-2xl font-extrabold text-blue-400 mt-1">82 / 100</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-xs text-slate-400">Retail Mood</p>
-                  <p className="text-sm font-bold text-emerald-400 mt-1 flex items-center gap-1">
-                    <Users className="h-4 w-4" /> Bullish (เชิงบวกสูง)
-                  </p>
-                </div>
-              </div>
-              <p className="text-[11px] text-slate-400 border-t border-slate-800 pt-2">
-                ปริมาณการพูดถึงในชุมชนการลงทุนเพิ่มขึ้น 24% ในรอบ 7 วัน
-              </p>
-            </div>
-          </div>
-
-          {/* Holdings & Activity Table Views */}
-          <div className="flex flex-col gap-4 mt-2">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-bold uppercase tracking-wider text-slate-400">
-                รายการหลักทรัพย์ในพอร์ตโฟลิโอ ({positions.length})
-              </h3>
             </div>
 
             <PositionsTable
@@ -613,211 +528,393 @@ export function DashboardShell({
               onDelete={(assetId) => setDialog({ kind: 'delete-asset', assetId })}
             />
 
-
-        {readError ? (
-          <Alert tone="error" message={readError} detail={readErrorDetail} />
-        ) : null}
-
-        {/* Portfolio Summary Cards */}
-        {summary ? <SummaryCards summary={summary} /> : null}
-
-        {selectedPortfolio === null ? (
-          <EmptyState
-            hasPortfolios={portfolios.length > 0}
-            onCreatePortfolio={() =>
-              setDialog({ kind: 'portfolio-form', portfolioId: null })
-            }
-          />
-        ) : (
-          <>
-            {/* Toolbar Action Bar */}
-            <Toolbar
-              portfolioName={selectedPortfolio.name}
-              onRecordTrade={() => setDialog({ kind: 'transaction' })}
-              onAddAsset={() => setDialog({ kind: 'asset-form', assetId: null })}
-              onToggleAiDrawer={() => setIsAiDrawerOpen(!isAiDrawerOpen)}
-              isAiDrawerOpen={isAiDrawerOpen}
+            <ActivityFeed
+              transactions={transactions}
+              currency={currency}
+              emptyHint="เริ่มบันทึกรายการเพื่อสร้างประวัติการลงทุน"
             />
+          </section>
+        ) : (
+          /* Main Dashboard Overview View */
+          <>
+            {/* SECTION 1: Portfolio Health & Summary Grid */}
+            <section className="flex flex-col gap-4">
+              <h2 className="text-lg font-bold text-slate-100 flex items-center gap-2">
+                <Activity className="h-5 w-5 text-brand-400" />
+                Section 1: ภาพรวมพอร์ตโฟลิโอและดัชนีสุขภาพ (Portfolio Health & AI Rebalancing)
+              </h2>
 
-            {/* Pillar 3: Active AI Portfolio Management Advisor Drawer */}
-            {isAiDrawerOpen ? (
-              <div className="rounded-xl border border-brand-500/40 bg-gradient-to-br from-brand-950/50 via-slate-900 to-slate-900 p-5 shadow-2xl transition-all">
-                <div className="flex items-center justify-between pb-3 border-b border-slate-800">
-                  <div className="flex items-center gap-2">
-                    <BrainCircuit className="h-5 w-5 text-brand-400" />
-                    <h3 className="font-bold text-slate-100 flex items-center gap-2">
-                      AI Portfolio Management Advisor
-                      <span className="rounded bg-brand-500/20 text-brand-300 text-[10px] px-2 py-0.5 font-semibold uppercase">
-                        Live Analytics
-                      </span>
-                    </h3>
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                {/* AI Portfolio Health Score */}
+                <div className="rounded-xl border border-brand-500/30 bg-gradient-to-br from-brand-950/40 via-slate-900 to-slate-900 p-5 flex flex-col justify-between">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                      AI Portfolio Health Score
+                    </p>
+                    <div className="mt-3 flex items-baseline gap-1">
+                      <span className="text-4xl font-extrabold text-emerald-400">88</span>
+                      <span className="text-sm font-semibold text-slate-400">/ 100</span>
+                    </div>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => setIsAiDrawerOpen(false)}
-                    className="text-xs text-slate-400 hover:text-slate-200"
-                  >
-                    ซ่อนที่ปรึกษา AI
-                  </button>
+                  <p className="mt-3 text-xs text-emerald-400 flex items-center gap-1 font-medium">
+                    <CheckCircle2 className="h-4 w-4 inline" /> โครงสร้างพอร์ตมีการกระจายความเสี่ยงดีเยี่ยม
+                  </p>
                 </div>
 
-                <div className="mt-4 grid grid-cols-1 md:grid-cols-4 gap-4 text-sm">
-                  {/* Health Score */}
-                  <div className="rounded-lg border border-slate-800 bg-slate-900/90 p-4 flex flex-col justify-between">
-                    <div>
-                      <p className="text-xs font-semibold uppercase text-slate-400">Portfolio Health Score</p>
-                      <div className="mt-2 flex items-baseline gap-1">
-                        <span className="text-3xl font-extrabold text-emerald-400">88</span>
-                        <span className="text-sm font-semibold text-slate-400">/ 100</span>
+                {/* Risk Assessment */}
+                <div className="rounded-xl border border-slate-800 bg-slate-900 p-5 flex flex-col justify-between">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                      การประเมินความเสี่ยง (Risk Metric)
+                    </p>
+                    <p className="mt-3 text-lg font-bold text-amber-300 flex items-center gap-1.5">
+                      <ShieldAlert className="h-5 w-5" /> ปานกลาง - ค่อนข้างสูง
+                    </p>
+                  </div>
+                  <p className="mt-2 text-xs text-slate-400">
+                    เน้นหุ้นกลุ่มเทคโนโลยีและกองทุน ETF สหรัฐฯ
+                  </p>
+                </div>
+
+                {/* AI Portfolio Rebalancing Advisor & Allocation Checker */}
+                <div className="rounded-xl border border-slate-800 bg-slate-900 p-5 md:col-span-2 flex flex-col justify-between">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wider text-brand-300 flex items-center gap-1.5">
+                      <Scale className="h-4 w-4" /> AI Portfolio Rebalancing Advisor & Allocation Checker
+                    </p>
+                    <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                      <div className="rounded bg-slate-950/80 p-2.5 border border-slate-800">
+                        <span className="text-slate-400 block font-medium">สัดส่วนปัจจุบัน (Tech Heavy)</span>
+                        <span className="text-amber-300 font-bold mt-0.5 block">45.0% Overweight (+10%)</span>
+                      </div>
+                      <div className="rounded bg-slate-950/80 p-2.5 border border-slate-800">
+                        <span className="text-slate-400 block font-medium">เป้าหมายสมดุล (Target ETF Index)</span>
+                        <span className="text-emerald-400 font-bold mt-0.5 block">35.0% Index Core</span>
                       </div>
                     </div>
-                    <p className="mt-2 text-[11px] text-emerald-400 flex items-center gap-1 font-medium">
-                      <CheckCircle2 className="h-3.5 w-3.5 inline" /> สุขภาพพอร์ตดีเยี่ยม
+                    <p className="mt-2.5 text-xs text-slate-300 leading-relaxed">
+                      คำแนะนำ AI: ทยอยสะสมดัชนีวงกว้างเช่น <span className="font-bold text-white">VOO</span> หรือ <span className="font-bold text-white">SPY</span> เพื่อปรับน้ำหนักความเสี่ยงให้อยู่ในกรอบสมดุล
                     </p>
                   </div>
+                  <p className="mt-2 text-[11px] text-slate-500 border-t border-slate-800 pt-2">
+                    ประมวลผลสัดส่วนจากรายการถือครองและเอกสารสแกน OCR ล่าสุด ({positions.length} รายการ)
+                  </p>
+                </div>
+              </div>
 
-                  {/* Risk Profile */}
-                  <div className="rounded-lg border border-slate-800 bg-slate-900/90 p-4 flex flex-col justify-between">
+              {/* 4-Card Summary Grid */}
+              {summary ? <SummaryCards summary={summary} /> : null}
+            </section>
+
+            {/* DCA / Accumulation Cost & Upside Price Projection Calculator */}
+            <section className="rounded-xl border border-slate-800 bg-slate-900 p-5 flex flex-col gap-4">
+              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                <h2 className="text-lg font-bold text-slate-100 flex items-center gap-2">
+                  <Calculator className="h-5 w-5 text-brand-400" />
+                  DCA / Accumulation Cost Basis & Upside Protection Simulator
+                </h2>
+                <span className="text-xs text-slate-400">คำนวณต้นทุนเฉลี่ยและกรอบนิรภัยกำไร (% Upside)</span>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 text-xs">
+                {/* Input Controls */}
+                <div className="space-y-3 bg-slate-950/60 p-4 rounded-lg border border-slate-800">
+                  <h3 className="font-bold text-slate-200 text-sm">จำลองการสะสมหุ้น (Scaling In)</h3>
+
+                  <div className="grid grid-cols-2 gap-2">
                     <div>
-                      <p className="text-xs font-semibold uppercase text-slate-400">ระดับความเสี่ยง (Risk Metric)</p>
-                      <p className="mt-2 text-lg font-bold text-amber-300 flex items-center gap-1.5">
-                        <ShieldAlert className="h-4 w-4" /> ปานกลาง-ค่อนข้างสูง
-                      </p>
+                      <label className="text-slate-400 block mb-1">จำนวนที่ถืออยู่</label>
+                      <input
+                        type="number"
+                        value={dcaCurrentQty}
+                        onChange={(e) => setDcaCurrentQty(Number(e.target.value))}
+                        className="w-full rounded border border-slate-800 bg-slate-900 p-2 text-slate-100"
+                      />
                     </div>
-                    <p className="mt-2 text-[11px] text-slate-400">
-                      มีสัดส่วนหุ้นเติบโตสูง (Tech/AI Growth)
-                    </p>
+                    <div>
+                      <label className="text-slate-400 block mb-1">ต้นทุนเฉลี่ยปัจจุบัน ($)</label>
+                      <input
+                        type="number"
+                        value={dcaCurrentCost}
+                        onChange={(e) => setDcaCurrentCost(Number(e.target.value))}
+                        className="w-full rounded border border-slate-800 bg-slate-900 p-2 text-slate-100"
+                      />
+                    </div>
                   </div>
 
-                  {/* Rebalance Recommendation */}
-                  <div className="rounded-lg border border-slate-800 bg-slate-900/90 p-4 md:col-span-2 flex flex-col justify-between">
+                  <div className="grid grid-cols-2 gap-2">
                     <div>
-                      <p className="text-xs font-semibold uppercase text-brand-300 flex items-center gap-1">
-                        <Zap className="h-3.5 w-3.5" /> AI Actionable Rebalancing Recommendation
-                      </p>
-                      <p className="mt-2 text-xs text-slate-300 leading-relaxed">
-                        พอร์ตโฟลิโอของคุณมีการกระจายตัวในกลุ่ม Tech สูง แนะนำการส่งคำสั่งซื้อสะสมดัชนีวงกว้างเช่น <span className="font-bold text-white">VOO</span> หรือ <span className="font-bold text-white">SPY</span> เพิ่มเติมเพื่อสร้างสมดุลกระแสเงินสดและผลตอบแทน
-                      </p>
+                      <label className="text-slate-400 block mb-1">จำนวนที่จะทยอยสะสมเพิ่ม</label>
+                      <input
+                        type="number"
+                        value={dcaNewQty}
+                        onChange={(e) => setDcaNewQty(Number(e.target.value))}
+                        className="w-full rounded border border-slate-800 bg-slate-900 p-2 text-slate-100"
+                      />
                     </div>
-                    <div className="mt-3 flex items-center justify-between border-t border-slate-800/80 pt-2 text-[11px] text-slate-400">
-                      <span>คำนวณจากสถานะถือครองล่าสุด ({positions.length} รายการ)</span>
-                      <button
-                        type="button"
-                        onClick={() => setDialog({ kind: 'transaction' })}
-                        className="font-semibold text-brand-400 hover:text-brand-300 underline"
+                    <div>
+                      <label className="text-slate-400 block mb-1">ราคาที่เข้าซื้อ ($)</label>
+                      <input
+                        type="number"
+                        value={dcaNewPrice}
+                        onChange={(e) => setDcaNewPrice(Number(e.target.value))}
+                        className="w-full rounded border border-slate-800 bg-slate-900 p-2 text-slate-100"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-slate-400 block mb-1">ราคาเป้าหมายประเมิน (Target Price Threshold $)</label>
+                    <input
+                      type="number"
+                      value={dcaTargetThreshold}
+                      onChange={(e) => setDcaTargetThreshold(Number(e.target.value))}
+                      className="w-full rounded border border-slate-800 bg-slate-900 p-2 text-slate-100"
+                    />
+                  </div>
+                </div>
+
+                {/* Projection Metric Output */}
+                <div className="lg:col-span-2 bg-slate-950/60 p-4 rounded-lg border border-slate-800 flex flex-col justify-between space-y-4">
+                  <h3 className="font-bold text-slate-200 text-sm">ผลการจำลองต้นทุนและ Upside Margin</h3>
+
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <div className="rounded bg-slate-900 p-3 border border-slate-800">
+                      <span className="text-slate-400 block">จำนวนหุ้นใหม่ทั้งหมด</span>
+                      <span className="text-base font-bold text-white mt-1 block">
+                        {formatQuantity(dcaResult.newTotalQuantity)} หุ้น
+                      </span>
+                    </div>
+                    <div className="rounded bg-slate-900 p-3 border border-slate-800">
+                      <span className="text-slate-400 block">ต้นทุนเฉลี่ยใหม่ประเมิน</span>
+                      <span className="text-base font-bold text-brand-300 mt-1 block">
+                        {formatMoney(dcaResult.newAverageCost, currency)}
+                      </span>
+                    </div>
+                    <div className="rounded bg-slate-900 p-3 border border-slate-800">
+                      <span className="text-slate-400 block">ระยะห่างถึงราคาเป้าหมาย</span>
+                      <span
+                        className={`text-base font-bold mt-1 block ${
+                          dcaResult.isBelowTargetThreshold ? 'text-emerald-400' : 'text-red-400'
+                        }`}
                       >
-                        ส่งคำสั่งรีบาลานซ์พอร์ต →
-                      </button>
+                        +{dcaResult.headroomToTargetPercent.toFixed(1)}% Upside
+                      </span>
                     </div>
+                    <div className="rounded bg-slate-900 p-3 border border-slate-800">
+                      <span className="text-slate-400 block">สถานะกรอบความปลอดภัย</span>
+                      <span
+                        className={`text-xs font-bold mt-1.5 block ${
+                          dcaResult.isBelowTargetThreshold ? 'text-emerald-400' : 'text-amber-400'
+                        }`}
+                      >
+                        {dcaResult.isBelowTargetThreshold ? '✓ ต่ำกว่าราคาเป้าหมาย' : '⚠ เกินกรอบความปลอดภัย'}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="rounded bg-brand-950/30 border border-brand-500/20 p-3 text-slate-300 leading-relaxed">
+                    <span className="font-bold text-brand-300">AI Safety Audit:</span> การทยอยสะสมเพิ่มเติมจำนวน {dcaNewQty} หุ้น ที่ราคา ${dcaNewPrice} จะส่งผลให้ต้นทุนเฉลี่ยปรับขึ้นเป็น ${dcaResult.newAverageCost.toFixed(2)} ซึ่งยังคงมี Margin of Safety ห่างจากราคาเป้าหมายประเมินที่ ${dcaTargetThreshold} อยู่ {dcaResult.headroomToTargetPercent.toFixed(1)}%
                   </div>
                 </div>
               </div>
-            ) : null}
+            </section>
 
-            {/* Pillar 2: AI Smart Money & Institutional News Intel */}
-            <section className="rounded-xl border border-slate-800 bg-slate-900 p-5 shadow-sm">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-800">
-                <div className="flex items-center gap-2">
+            {/* SECTION 2: AI Institutional Intel & Smart Money Feed */}
+            <section className="rounded-xl border border-slate-800 bg-slate-900 p-5 flex flex-col gap-4">
+              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                <h2 className="text-lg font-bold text-slate-100 flex items-center gap-2">
                   <Building2 className="h-5 w-5 text-brand-400" />
-                  <h3 className="font-bold text-slate-100">AI Smart Money & Institutional Intel</h3>
-                </div>
+                  Section 2: AI Institutional Intel & Smart Money Brief
+                </h2>
                 <span className="text-xs text-slate-400 flex items-center gap-1">
-                  <Activity className="h-3.5 w-3.5 text-emerald-400" /> อัปเดตแบบเรียลไทม์
+                  <Activity className="h-3.5 w-3.5 text-emerald-400" /> ข้อมูลประมวลผล AI ล่าสุด
                 </span>
               </div>
 
-              <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {INSTITUTIONAL_INTEL.map((intel) => (
                   <div
                     key={intel.title}
-                    className="rounded-lg border border-slate-800/80 bg-slate-950/60 p-4 flex flex-col justify-between hover:border-slate-700 transition-colors"
+                    className="rounded-lg border border-slate-800/80 bg-slate-950/60 p-4 flex flex-col justify-between"
                   >
                     <div>
                       <div className="flex items-center justify-between text-[11px] font-semibold text-brand-300">
                         <span>{intel.type}</span>
                         <span className="text-slate-500 font-normal">{intel.time}</span>
                       </div>
-                      <h4 className="mt-2 font-semibold text-sm text-slate-100 leading-snug">
+                      <h3 className="mt-2 font-bold text-sm text-slate-100 leading-snug">
                         {intel.title}
-                      </h4>
-                      <p className="mt-1.5 text-xs text-slate-400 leading-relaxed">
-                        {intel.detail}
+                      </h3>
+                      <p className="mt-2 text-xs text-slate-300 leading-relaxed">
+                        <span className="font-semibold text-slate-200">Exec Sum:</span> {intel.execSum}
                       </p>
+                    </div>
+                    <div className="mt-3 rounded bg-brand-950/40 border border-brand-500/20 p-2.5 text-xs text-brand-200 font-medium">
+                      {intel.ourTake}
                     </div>
                   </div>
                 ))}
               </div>
             </section>
 
-            {/* Tabbed Dual View Content */}
-            <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('holdings')}
-                  className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
-                    activeTab === 'holdings'
-                      ? 'bg-brand-600 text-white'
-                      : 'text-slate-400 hover:bg-slate-900 hover:text-slate-200'
-                  }`}
-                >
-                  รายการถือครอง ({positions.length})
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('watchlist')}
-                  className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
-                    activeTab === 'watchlist'
-                      ? 'bg-brand-600 text-white'
-                      : 'text-slate-400 hover:bg-slate-900 hover:text-slate-200'
-                  }`}
-                >
-                  Watchlist ตลาดสหรัฐฯ
-                </button>
-              </div>
-            </div>
-
-            <PositionsTable
-              positions={positions}
-              currency={currency}
-              onEdit={(assetId) => setDialog({ kind: 'asset-form', assetId })}
-              onDelete={(assetId) => setDialog({ kind: 'delete-asset', assetId })}
+            {/* SECTION 3: US Stock & ETF Intelligence Workbench (247WallSt Style & One-Click Portfolio Sync) */}
+            <StockIntelligenceWorkbench
+              portfolios={portfolios}
+              initialSymbol={selectedDeepDiveSymbol}
+              onAssetAdded={handleRefreshPortfolioData}
             />
 
-            <section className="grid grid-cols-1 gap-4 lg:grid-cols-2 mt-2">
-              <AllocationList
-                title="สัดส่วนตามประเภททรัพย์สิน"
-                slices={typeAllocation}
-                currency={currency}
-              />
-              <AllocationList
-                title="สัดส่วนตามกลุ่มอุตสาหกรรม"
-                slices={sectorAllocation}
-                currency={currency}
-              />
-            </section>
+            {/* SECTION 4: Sequential Asset Deep-Dive View */}
+            <section className="rounded-xl border border-slate-800 bg-slate-900 p-5 flex flex-col gap-6">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between border-b border-slate-800 pb-3 gap-2">
+                <h2 className="text-lg font-bold text-slate-100 flex items-center gap-2">
+                  <BarChart3 className="h-5 w-5 text-brand-400" />
+                  Section 4: วิเคราะห์เจาะลึกรายหลักทรัพย์ (Asset Deep-Dive Analytics) — {selectedDeepDiveSymbol}
+                </h2>
+                <div className="flex items-center gap-2 text-xs text-slate-400">
+                  <span>เลือกหลักทรัพย์:</span>
+                  <select
+                    value={selectedDeepDiveSymbol}
+                    onChange={(e) => setSelectedDeepDiveSymbol(e.target.value)}
+                    className="rounded border border-slate-800 bg-slate-950 px-2.5 py-1 text-slate-200 focus:border-brand-500 focus:outline-none"
+                  >
+                    <option value="MRVL">MRVL — Marvell Technology</option>
+                    <option value="NVDA">NVDA — NVIDIA Corp.</option>
+                    <option value="AAPL">AAPL — Apple Inc.</option>
+                    <option value="MSFT">MSFT — Microsoft Corp.</option>
+                    <option value="VOO">VOO — Vanguard S&P 500 ETF</option>
+                    <option value="QQQ">QQQ — Invesco QQQ Trust</option>
+                    <option value="JEPQ">JEPQ — JPMorgan NASDAQ Equity Premium</option>
+                  </select>
+                </div>
+              </div>
 
-            <section className="flex flex-col gap-3 mt-2">
-              <h3 className="text-sm font-bold uppercase tracking-wider text-slate-400">
-                ประวัติรายการเคลื่อนไหว
-                ประวัติรายการเคลื่อนไหว (BUY / SELL)
-              </h3>
-              <ActivityFeed
-                transactions={transactions}
-                currency={currency}
-                emptyHint="เริ่มบันทึกรายการเพื่อสร้างประวัติการลงทุน"
-              />
-            </section>
-          </div>
-        </section>
+              {/* Deep Dive Grid */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* 1. At a Glance & Key Data */}
+                <div className="rounded-lg border border-slate-800 bg-slate-950/60 p-4 flex flex-col gap-3">
+                  <h3 className="text-sm font-bold text-slate-200 flex items-center gap-1.5">
+                    <LineChart className="h-4 w-4 text-brand-400" /> Key Valuation & Fundamentals
+                  </h3>
+                  <dl className="grid grid-cols-2 gap-2 text-xs">
+                    <div className="rounded bg-slate-900 p-2">
+                      <dt className="text-slate-400">Market Cap</dt>
+                      <dd className="font-bold text-slate-100 mt-0.5">$3.32T</dd>
+                    </div>
+                    <div className="rounded bg-slate-900 p-2">
+                      <dt className="text-slate-400">P/E Ratio</dt>
+                      <dd className="font-bold text-slate-100 mt-0.5">48.5x</dd>
+                    </div>
+                    <div className="rounded bg-slate-900 p-2">
+                      <dt className="text-slate-400">EPS (TTM)</dt>
+                      <dd className="font-bold text-slate-100 mt-0.5">$2.78</dd>
+                    </div>
+                    <div className="rounded bg-slate-900 p-2">
+                      <dt className="text-slate-400">52-Wk Range</dt>
+                      <dd className="font-bold text-slate-100 mt-0.5">$45.20 - $140.76</dd>
+                    </div>
+                  </dl>
+                </div>
 
-        {/* SECTION 4: Collapsible AI Advisor Drawer */}
+                {/* 2. Analyst Consensus Ring & Targets */}
+                <div className="rounded-lg border border-slate-800 bg-slate-950/60 p-4 flex flex-col gap-3">
+                  <h3 className="text-sm font-bold text-slate-200 flex items-center gap-1.5">
+                    <Target className="h-4 w-4 text-emerald-400" /> Analyst Consensus & Price Target
+                  </h3>
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded">
+                      Consensus: Strong Buy
+                    </span>
+                    <span className="text-slate-400">นักวิเคราะห์ 42 ท่าน</span>
+                  </div>
+                  <div className="text-xs space-y-1.5">
+                    <div className="flex justify-between text-slate-300">
+                      <span>ราคาเป้าหมายเฉลี่ย (Mean Target):</span>
+                      <span className="font-bold text-white">$155.00 (+15.0%)</span>
+                    </div>
+                    <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden flex">
+                      <div className="bg-emerald-500 h-full w-[80%]" title="Buy 80%" />
+                      <div className="bg-amber-500 h-full w-[15%]" title="Hold 15%" />
+                      <div className="bg-red-500 h-full w-[5%]" title="Sell 5%" />
+                    </div>
+                    <p className="text-[11px] text-slate-400 text-right">80% Buy / 15% Hold / 5% Sell</p>
+                  </div>
+                </div>
+
+                {/* 3. Social Sentiment & Retail Mood */}
+                <div className="rounded-lg border border-slate-800 bg-slate-950/60 p-4 flex flex-col gap-3">
+                  <h3 className="text-sm font-bold text-slate-200 flex items-center gap-1.5">
+                    <ThumbsUp className="h-4 w-4 text-blue-400" /> Social Sentiment & Mood
+                  </h3>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-xs text-slate-400">Sentiment Score</p>
+                      <p className="text-2xl font-extrabold text-blue-400 mt-1">82 / 100</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xs text-slate-400">Retail Mood</p>
+                      <p className="text-sm font-bold text-emerald-400 mt-1 flex items-center gap-1">
+                        <Users className="h-4 w-4" /> Bullish (เชิงบวกสูง)
+                      </p>
+                    </div>
+                  </div>
+                  <p className="text-[11px] text-slate-400 border-t border-slate-800 pt-2">
+                    ปริมาณการพูดถึงในชุมชนการลงทุนเพิ่มขึ้น 24% ในรอบ 7 วัน
+                  </p>
+                </div>
+              </div>
+
+              {/* Holdings & Activity Table Views */}
+              <div className="flex flex-col gap-4 mt-2">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-bold uppercase tracking-wider text-slate-400">
+                    รายการหลักทรัพย์ในพอร์ตโฟลิโอ ({positions.length})
+                  </h3>
+                </div>
+
+                <PositionsTable
+                  positions={positions}
+                  currency={currency}
+                  onEdit={(assetId) => setDialog({ kind: 'asset-form', assetId })}
+                  onDelete={(assetId) => setDialog({ kind: 'delete-asset', assetId })}
+                />
+
+                <section className="grid grid-cols-1 gap-4 lg:grid-cols-2 mt-2">
+                  <AllocationList
+                    title="สัดส่วนตามประเภททรัพย์สิน"
+                    slices={typeAllocation}
+                    currency={currency}
+                  />
+                  <AllocationList
+                    title="สัดส่วนตามกลุ่มอุตสาหกรรม"
+                    slices={sectorAllocation}
+                    currency={currency}
+                  />
+                </section>
+
+                <section className="flex flex-col gap-3 mt-2">
+                  <h3 className="text-sm font-bold uppercase tracking-wider text-slate-400">
+                    ประวัติรายการเคลื่อนไหว (BUY / SELL)
+                  </h3>
+                  <ActivityFeed
+                    transactions={transactions}
+                    currency={currency}
+                    emptyHint="เริ่มบันทึกรายการเพื่อสร้างประวัติการลงทุน"
+                  />
+                </section>
+              </div>
+            </section>
+          </>
+        )}
+
+        {/* SECTION 5: Collapsible AI Advisor Drawer */}
         {isAiDrawerOpen ? (
           <aside className="rounded-xl border border-brand-500/30 bg-slate-900 p-5">
             <div className="flex items-center justify-between pb-3 border-b border-slate-800">
               <div className="flex items-center gap-2">
                 <BrainCircuit className="h-5 w-5 text-brand-400" />
-                <h3 className="font-bold text-slate-100">Section 4: Active AI Portfolio Advisor Panel</h3>
+                <h3 className="font-bold text-slate-100">Section 5: Active AI Portfolio Advisor Panel</h3>
               </div>
               <button
                 type="button"
@@ -856,10 +953,11 @@ export function DashboardShell({
 
         <DashboardDialogs
           dialog={dialog}
-          onClose={close}
+          onClose={closeDialog}
           portfolios={portfolios}
           selectedPortfolio={selectedPortfolio}
           allAssets={allAssets}
+          onSyncSuccess={handleSyncSuccess}
         />
       </main>
     </div>
@@ -1010,6 +1108,7 @@ interface DashboardDialogsProps {
   portfolios: readonly PortfolioListItem[];
   selectedPortfolio: PortfolioListItem | null;
   allAssets: readonly AssetListItem[];
+  onSyncSuccess: (targetPortfolioId: string, message: string) => void;
 }
 
 function DashboardDialogs({
@@ -1018,10 +1117,22 @@ function DashboardDialogs({
   portfolios,
   selectedPortfolio,
   allAssets,
+  onSyncSuccess,
 }: DashboardDialogsProps) {
   const defaultPortfolioId = selectedPortfolio?.id ?? portfolios[0]?.id ?? '';
 
   switch (dialog.kind) {
+    case 'upload-document':
+      return (
+        <DocumentUploadModal
+          key="upload-document"
+          portfolios={portfolios}
+          selectedPortfolioId={selectedPortfolio?.id ?? null}
+          onClose={onClose}
+          onSyncSuccess={onSyncSuccess}
+        />
+      );
+
     case 'portfolio-form': {
       const portfolio =
         dialog.portfolioId === null
