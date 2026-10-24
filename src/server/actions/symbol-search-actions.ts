@@ -116,52 +116,37 @@ export async function searchUSMarketSymbolsAction(query: string): Promise<Market
     return [];
   }
 
-  let results: MarketSymbolResult[] = [];
   const fmpApiKey = getFmpApiKey();
-
   if (fmpApiKey) {
     try {
       const url = `https://financialmodelingprep.com/api/v3/search?query=${encodeURIComponent(
         trimmed,
-      )}&limit=10&apikey=${fmpApiKey}`;
+      )}&limit=10&exchange=NASDAQ,NYSE,AMEX&apikey=${fmpApiKey}`;
 
       const res = await fetch(url, { next: { revalidate: 300 } });
-      const rawText = await res.text();
-
-      let data: FmpSearchResultItem[] = [];
-      try {
-        data = JSON.parse(rawText) as FmpSearchResultItem[];
-      } catch {
-        console.error('[FMP Search API] Failed to parse JSON response:', rawText);
-      }
-
-      console.log('[FMP Search API Response]', {
-        query: trimmed,
-        status: res.status,
-        resultCount: Array.isArray(data) ? data.length : 0,
-        sample: Array.isArray(data) ? data.slice(0, 3) : rawText.slice(0, 100),
-      });
-
-      if (res.ok && Array.isArray(data) && data.length > 0) {
-        results = data.map((item) => {
-          const sym = item.symbol.toUpperCase();
-          const isEtf = sym.endsWith('Q') || sym.endsWith('Y') || sym.length === 3;
-          return {
-            symbol: sym,
-            name: item.name || `${sym} ${isEtf ? 'ETF' : 'Corporation'}`,
-            assetType: isEtf ? 'etf' : 'stock',
-            exchange: item.exchangeShortName || item.stockExchange || 'US Market',
-            currency: item.currency || 'USD',
-          };
-        });
+      if (res.ok) {
+        const data = (await res.json()) as FmpSearchResultItem[];
+        if (Array.isArray(data) && data.length > 0) {
+          return data.map((item) => {
+            const sym = item.symbol.toUpperCase();
+            const isEtf = sym.endsWith('Q') || sym.endsWith('Y') || sym.length === 3;
+            return {
+              symbol: sym,
+              name: item.name || `${sym} ${isEtf ? 'ETF' : 'Corporation'}`,
+              assetType: isEtf ? 'etf' : 'stock',
+              exchange: item.exchangeShortName || item.stockExchange || 'US Market',
+              currency: item.currency || 'USD',
+            };
+          });
+        }
       }
     } catch (err) {
-      console.error('[FMP Search API Error]', err);
+      console.error('FMP Search API failed, using fallback static tickers:', err);
     }
   }
 
-  // Fallback / local static search integration
-  const staticPrefixMatches = COMPREHENSIVE_US_MARKET_TICKERS.filter((item) =>
+  // Local fallback search logic
+  const prefixMatches = COMPREHENSIVE_US_MARKET_TICKERS.filter((item) =>
     item.symbol.startsWith(trimmed),
   );
   const staticNameMatches = COMPREHENSIVE_US_MARKET_TICKERS.filter(
@@ -551,33 +536,17 @@ async function fetchFmpData(
     let profile: FmpProfileData | undefined;
     let quote: FmpQuoteData | undefined;
 
-    if (profileRes) {
-      const pText = await profileRes.text();
-      console.log(`[FMP Profile API] Symbol: ${symbol}, Status: ${profileRes.status}`, pText.slice(0, 150));
-      if (profileRes.ok) {
-        try {
-          const pArr = JSON.parse(pText) as FmpProfileData[];
-          if (Array.isArray(pArr) && pArr.length > 0) {
-            profile = pArr[0];
-          }
-        } catch (err) {
-          console.error(`[FMP Profile API Parse Error] Symbol: ${symbol}`, err);
-        }
+    if (profileRes?.ok) {
+      const pArr = (await profileRes.json()) as FmpProfileData[];
+      if (Array.isArray(pArr) && pArr.length > 0) {
+        profile = pArr[0];
       }
     }
 
-    if (quoteRes) {
-      const qText = await quoteRes.text();
-      console.log(`[FMP Quote API] Symbol: ${symbol}, Status: ${quoteRes.status}`, qText.slice(0, 150));
-      if (quoteRes.ok) {
-        try {
-          const qArr = JSON.parse(qText) as FmpQuoteData[];
-          if (Array.isArray(qArr) && qArr.length > 0) {
-            quote = qArr[0];
-          }
-        } catch (err) {
-          console.error(`[FMP Quote API Parse Error] Symbol: ${symbol}`, err);
-        }
+    if (quoteRes?.ok) {
+      const qArr = (await quoteRes.json()) as FmpQuoteData[];
+      if (Array.isArray(qArr) && qArr.length > 0) {
+        quote = qArr[0];
       }
     }
 
