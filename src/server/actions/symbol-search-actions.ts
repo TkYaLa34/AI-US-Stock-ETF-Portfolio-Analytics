@@ -149,28 +149,48 @@ export async function searchUSMarketSymbolsAction(query: string): Promise<Market
   const prefixMatches = COMPREHENSIVE_US_MARKET_TICKERS.filter((item) =>
     item.symbol.startsWith(trimmed),
   );
-
-  const nameMatches = COMPREHENSIVE_US_MARKET_TICKERS.filter(
+  const staticNameMatches = COMPREHENSIVE_US_MARKET_TICKERS.filter(
     (item) =>
       !item.symbol.startsWith(trimmed) &&
       (item.name.toUpperCase().includes(trimmed) || item.symbol.includes(trimmed)),
   );
+  const localStaticCombined = [...staticPrefixMatches, ...staticNameMatches];
 
-  const combined = [...prefixMatches, ...nameMatches];
+  // Merge FMP and static results without duplicates
+  const seenSymbols = new Set<string>();
+  const mergedResults: MarketSymbolResult[] = [];
 
-  // Dynamic fallback for any unlisted US Ticker
-  if (combined.length === 0 && /^[A-Z0-9.]{1,8}$/.test(trimmed)) {
+  for (const item of [...results, ...localStaticCombined]) {
+    if (!seenSymbols.has(item.symbol)) {
+      seenSymbols.add(item.symbol);
+      mergedResults.push(item);
+    }
+  }
+
+  // Ensure exact ticker match (e.g., KO, NVDA, AAPL) is prioritized
+  const exactStaticMatch = COMPREHENSIVE_US_MARKET_TICKERS.find((item) => item.symbol === trimmed);
+  if (!seenSymbols.has(trimmed) && /^[A-Z0-9.]{1,8}$/.test(trimmed)) {
     const isEtf = trimmed.endsWith('Q') || trimmed.endsWith('Y') || trimmed.length === 3;
-    combined.push({
+    const exactMatch: MarketSymbolResult = exactStaticMatch ?? {
       symbol: trimmed,
       name: `${trimmed} ${isEtf ? 'ETF Trust' : 'Corporation'}`,
       assetType: isEtf ? 'etf' : 'stock',
       exchange: 'NASDAQ',
       currency: 'USD',
-    });
+    };
+    mergedResults.unshift(exactMatch);
+  } else if (seenSymbols.has(trimmed)) {
+    // Move exact match to front
+    const exactIndex = mergedResults.findIndex((item) => item.symbol === trimmed);
+    if (exactIndex > 0) {
+      const [exactItem] = mergedResults.splice(exactIndex, 1);
+      if (exactItem) {
+        mergedResults.unshift(exactItem);
+      }
+    }
   }
 
-  return combined.slice(0, 10);
+  return mergedResults.slice(0, 10);
 }
 
 /** Rich institutional intelligence profiles for major US tickers */
