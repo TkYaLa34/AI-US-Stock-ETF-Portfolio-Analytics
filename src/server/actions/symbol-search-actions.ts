@@ -1,5 +1,7 @@
 'use server';
 
+import { getFmpApiKey } from '@/lib/env';
+
 /**
  * Server action for searching US stocks and ETFs and retrieving detailed
  * institutional asset intelligence data (Market Metrics, Target Price Scenarios,
@@ -100,37 +102,110 @@ const COMPREHENSIVE_US_MARKET_TICKERS: readonly MarketSymbolResult[] = [
   { symbol: 'PYPL', name: 'PayPal Holdings Inc.', assetType: 'stock', exchange: 'NASDAQ', currency: 'USD' },
 ];
 
+interface FmpSearchResultItem {
+  symbol: string;
+  name: string;
+  currency?: string;
+  stockExchange?: string;
+  exchangeShortName?: string;
+}
+
 export async function searchUSMarketSymbolsAction(query: string): Promise<MarketSymbolResult[]> {
   const trimmed = query.trim().toUpperCase();
   if (trimmed.length === 0) {
     return [];
   }
 
-  const prefixMatches = COMPREHENSIVE_US_MARKET_TICKERS.filter((item) =>
+  let results: MarketSymbolResult[] = [];
+  const fmpApiKey = getFmpApiKey();
+
+  if (fmpApiKey) {
+    try {
+      const url = `https://financialmodelingprep.com/api/v3/search?query=${encodeURIComponent(
+        trimmed,
+      )}&limit=10&apikey=${fmpApiKey}`;
+
+      const res = await fetch(url, { next: { revalidate: 300 } });
+      const rawText = await res.text();
+
+      let data: FmpSearchResultItem[] = [];
+      try {
+        data = JSON.parse(rawText) as FmpSearchResultItem[];
+      } catch {
+        console.error('[FMP Search API] Failed to parse JSON response:', rawText);
+      }
+
+      console.log('[FMP Search API Response]', {
+        query: trimmed,
+        status: res.status,
+        resultCount: Array.isArray(data) ? data.length : 0,
+        sample: Array.isArray(data) ? data.slice(0, 3) : rawText.slice(0, 100),
+      });
+
+      if (res.ok && Array.isArray(data) && data.length > 0) {
+        results = data.map((item) => {
+          const sym = item.symbol.toUpperCase();
+          const isEtf = sym.endsWith('Q') || sym.endsWith('Y') || sym.length === 3;
+          return {
+            symbol: sym,
+            name: item.name || `${sym} ${isEtf ? 'ETF' : 'Corporation'}`,
+            assetType: isEtf ? 'etf' : 'stock',
+            exchange: item.exchangeShortName || item.stockExchange || 'US Market',
+            currency: item.currency || 'USD',
+          };
+        });
+      }
+    } catch (err) {
+      console.error('[FMP Search API Error]', err);
+    }
+  }
+
+  // Fallback / local static search integration
+  const staticPrefixMatches = COMPREHENSIVE_US_MARKET_TICKERS.filter((item) =>
     item.symbol.startsWith(trimmed),
   );
-
-  const nameMatches = COMPREHENSIVE_US_MARKET_TICKERS.filter(
+  const staticNameMatches = COMPREHENSIVE_US_MARKET_TICKERS.filter(
     (item) =>
       !item.symbol.startsWith(trimmed) &&
       (item.name.toUpperCase().includes(trimmed) || item.symbol.includes(trimmed)),
   );
+  const localStaticCombined = [...staticPrefixMatches, ...staticNameMatches];
 
-  const combined = [...prefixMatches, ...nameMatches];
+  // Merge FMP and static results without duplicates
+  const seenSymbols = new Set<string>();
+  const mergedResults: MarketSymbolResult[] = [];
 
-  // Dynamic fallback for any unlisted US Ticker
-  if (combined.length === 0 && /^[A-Z0-9.]{1,8}$/.test(trimmed)) {
+  for (const item of [...results, ...localStaticCombined]) {
+    if (!seenSymbols.has(item.symbol)) {
+      seenSymbols.add(item.symbol);
+      mergedResults.push(item);
+    }
+  }
+
+  // Ensure exact ticker match (e.g., KO, NVDA, AAPL) is prioritized
+  const exactStaticMatch = COMPREHENSIVE_US_MARKET_TICKERS.find((item) => item.symbol === trimmed);
+  if (!seenSymbols.has(trimmed) && /^[A-Z0-9.]{1,8}$/.test(trimmed)) {
     const isEtf = trimmed.endsWith('Q') || trimmed.endsWith('Y') || trimmed.length === 3;
-    combined.push({
+    const exactMatch: MarketSymbolResult = exactStaticMatch ?? {
       symbol: trimmed,
       name: `${trimmed} ${isEtf ? 'ETF Trust' : 'Corporation'}`,
       assetType: isEtf ? 'etf' : 'stock',
       exchange: 'NASDAQ',
       currency: 'USD',
-    });
+    };
+    mergedResults.unshift(exactMatch);
+  } else if (seenSymbols.has(trimmed)) {
+    // Move exact match to front
+    const exactIndex = mergedResults.findIndex((item) => item.symbol === trimmed);
+    if (exactIndex > 0) {
+      const [exactItem] = mergedResults.splice(exactIndex, 1);
+      if (exactItem) {
+        mergedResults.unshift(exactItem);
+      }
+    }
   }
 
-  return combined.slice(0, 10);
+  return mergedResults.slice(0, 10);
 }
 
 /** Rich institutional intelligence profiles for major US tickers */
@@ -430,6 +505,118 @@ const INTELLIGENCE_DATABASE: Record<string, AssetIntelligenceData> = {
   },
 };
 
+interface FmpProfileData {
+  symbol: string;
+  price?: number;
+  mktCap?: number;
+  lastDiv?: number;
+  range?: string;
+  companyName?: string;
+  currency?: string;
+  exchangeShortName?: string;
+  isEtf?: boolean;
+  industry?: string;
+  description?: string;
+}
+
+interface FmpQuoteData {
+  symbol: string;
+  name?: string;
+  price?: number;
+  yearLow?: number;
+  yearHigh?: number;
+  marketCap?: number;
+  eps?: number;
+  pe?: number;
+  exchange?: string;
+}
+
+async function fetchFmpData(
+  symbol: string,
+  apiKey: string,
+): Promise<{ profile?: FmpProfileData; quote?: FmpQuoteData } | null> {
+  try {
+    const profileUrl = `https://financialmodelingprep.com/api/v3/profile/${encodeURIComponent(
+      symbol,
+    )}?apikey=${apiKey}`;
+    const quoteUrl = `https://financialmodelingprep.com/api/v3/quote/${encodeURIComponent(
+      symbol,
+    )}?apikey=${apiKey}`;
+
+    const [profileRes, quoteRes] = await Promise.all([
+      fetch(profileUrl, { next: { revalidate: 300 } }).catch(() => null),
+      fetch(quoteUrl, { next: { revalidate: 300 } }).catch(() => null),
+    ]);
+
+    let profile: FmpProfileData | undefined;
+    let quote: FmpQuoteData | undefined;
+
+    if (profileRes) {
+      const pText = await profileRes.text();
+      console.log(`[FMP Profile API] Symbol: ${symbol}, Status: ${profileRes.status}`, pText.slice(0, 150));
+      if (profileRes.ok) {
+        try {
+          const pArr = JSON.parse(pText) as FmpProfileData[];
+          if (Array.isArray(pArr) && pArr.length > 0) {
+            profile = pArr[0];
+          }
+        } catch (err) {
+          console.error(`[FMP Profile API Parse Error] Symbol: ${symbol}`, err);
+        }
+      }
+    }
+
+    if (quoteRes) {
+      const qText = await quoteRes.text();
+      console.log(`[FMP Quote API] Symbol: ${symbol}, Status: ${quoteRes.status}`, qText.slice(0, 150));
+      if (quoteRes.ok) {
+        try {
+          const qArr = JSON.parse(qText) as FmpQuoteData[];
+          if (Array.isArray(qArr) && qArr.length > 0) {
+            quote = qArr[0];
+          }
+        } catch (err) {
+          console.error(`[FMP Quote API Parse Error] Symbol: ${symbol}`, err);
+        }
+      }
+    }
+
+    if (profile || quote) {
+      return { profile, quote };
+    }
+  } catch (err) {
+    console.error(`Failed to fetch FMP data for ${symbol}:`, err);
+  }
+  return null;
+}
+
+function parse52WeekRange(rangeStr?: string): { low?: number; high?: number } {
+  if (!rangeStr) return {};
+  const parts = rangeStr.split('-');
+  if (parts.length === 2) {
+    const low = parseFloat(parts[0]!.trim());
+    const high = parseFloat(parts[1]!.trim());
+    if (!isNaN(low) && !isNaN(high)) {
+      return { low, high };
+    }
+  }
+  return {};
+}
+
+function formatMarketCap(mktCap?: number, isEtf?: boolean): string {
+  if (!mktCap || mktCap <= 0) return isEtf ? 'N/A (ETF)' : 'N/A';
+  if (mktCap >= 1e12) {
+    return `$${(mktCap / 1e12).toFixed(2)}T${isEtf ? ' AUM' : ''}`;
+  }
+  if (mktCap >= 1e9) {
+    return `$${(mktCap / 1e9).toFixed(1)}B${isEtf ? ' AUM' : ''}`;
+  }
+  if (mktCap >= 1e6) {
+    return `$${(mktCap / 1e6).toFixed(1)}M${isEtf ? ' AUM' : ''}`;
+  }
+  return `$${mktCap.toLocaleString('en-US')}`;
+}
+
 /** Deterministic pseudo-random number generator for dynamic fallback profiles */
 function hashTickerString(str: string): number {
   let hash = 0;
@@ -442,21 +629,122 @@ function hashTickerString(str: string): number {
 
 export async function getAssetIntelligenceAction(symbol: string): Promise<AssetIntelligenceData> {
   const upper = symbol.trim().toUpperCase();
-  if (INTELLIGENCE_DATABASE[upper]) {
-    return INTELLIGENCE_DATABASE[upper];
+
+  const fmpApiKey = getFmpApiKey();
+  let fmpData: { profile?: FmpProfileData; quote?: FmpQuoteData } | null = null;
+  if (fmpApiKey) {
+    fmpData = await fetchFmpData(upper, fmpApiKey);
+  }
+
+  const dbData = INTELLIGENCE_DATABASE[upper];
+  if (dbData) {
+    if (fmpData) {
+      const livePrice = fmpData.quote?.price ?? fmpData.profile?.price ?? dbData.currentPrice;
+      const priceRatio = dbData.currentPrice > 0 ? livePrice / dbData.currentPrice : 1;
+      const range = parse52WeekRange(fmpData.profile?.range);
+      const low52 = fmpData.quote?.yearLow ?? range.low ?? dbData.week52Low;
+      const high52 = fmpData.quote?.yearHigh ?? range.high ?? dbData.week52High;
+      const isEtf = dbData.assetType === 'etf';
+
+      const liveMarketCap = formatMarketCap(
+        fmpData.quote?.marketCap ?? fmpData.profile?.mktCap,
+        isEtf,
+      );
+      const livePe = fmpData.quote?.pe
+        ? `${fmpData.quote.pe.toFixed(1)}x (Forward)`
+        : dbData.peRatio;
+      const liveDiv =
+        fmpData.profile?.lastDiv && livePrice > 0
+          ? `${((fmpData.profile.lastDiv / livePrice) * 100).toFixed(2)}%`
+          : dbData.dividendYield;
+      const liveEps =
+        fmpData.quote?.eps !== undefined ? `$${fmpData.quote.eps.toFixed(2)}` : dbData.forwardEps;
+
+      return {
+        ...dbData,
+        currentPrice: livePrice,
+        marketCap:
+          liveMarketCap !== 'N/A' && liveMarketCap !== 'N/A (ETF)'
+            ? liveMarketCap
+            : dbData.marketCap,
+        peRatio: livePe,
+        dividendYield: liveDiv,
+        forwardEps: liveEps,
+        week52Low: low52,
+        week52High: high52,
+        projections: {
+          currentPrice: livePrice,
+          conservative12M: Number((dbData.projections.conservative12M * priceRatio).toFixed(2)),
+          base12M: Number((dbData.projections.base12M * priceRatio).toFixed(2)),
+          optimistic12M: Number((dbData.projections.optimistic12M * priceRatio).toFixed(2)),
+          conservative5Y: Number((dbData.projections.conservative5Y * priceRatio).toFixed(2)),
+          base5Y: Number((dbData.projections.base5Y * priceRatio).toFixed(2)),
+          optimistic5Y: Number((dbData.projections.optimistic5Y * priceRatio).toFixed(2)),
+        },
+        analystRatings: {
+          ...dbData.analystRatings,
+          meanTargetPrice: Number((dbData.analystRatings.meanTargetPrice * priceRatio).toFixed(2)),
+        },
+      };
+    }
+    return dbData;
   }
 
   // Dynamic Intelligence Generator for ANY valid US Ticker
   const match = COMPREHENSIVE_US_MARKET_TICKERS.find((t) => t.symbol === upper);
-  const isEtf = match?.assetType === 'etf' || upper.endsWith('Q') || upper.length === 3;
-  const name = match?.name ?? `${upper} ${isEtf ? 'ETF Trust' : 'Corporation'}`;
+  const isEtf =
+    fmpData?.profile?.isEtf ??
+    (match?.assetType === 'etf' || upper.endsWith('Q') || upper.endsWith('Y') || upper.length === 3);
+
+  const name =
+    fmpData?.profile?.companyName ??
+    fmpData?.quote?.name ??
+    match?.name ??
+    `${upper} ${isEtf ? 'ETF Trust' : 'Corporation'}`;
+
+  const exchange =
+    fmpData?.profile?.exchangeShortName ??
+    fmpData?.quote?.exchange ??
+    match?.exchange ??
+    'NASDAQ';
 
   const seed = hashTickerString(upper);
-  const basePrice = 40 + (seed % 180);
-  const pe = 15 + (seed % 35);
-  const yieldPct = ((seed % 300) / 100).toFixed(2);
-  const upside = 12 + (seed % 20);
+  const basePrice = fmpData?.quote?.price ?? fmpData?.profile?.price ?? 40 + (seed % 180);
 
+  const peVal = fmpData?.quote?.pe ?? 15 + (seed % 35);
+  const peRatio = fmpData?.quote?.pe
+    ? `${peVal.toFixed(1)}x (Forward)`
+    : isEtf
+      ? `${peVal.toFixed(1)}x (Weighted)`
+      : `${peVal.toFixed(1)}x (Forward)`;
+
+  const divYieldVal =
+    fmpData?.profile?.lastDiv && basePrice > 0
+      ? ((fmpData.profile.lastDiv / basePrice) * 100).toFixed(2)
+      : ((seed % 300) / 100).toFixed(2);
+
+  const forwardEps =
+    fmpData?.quote?.eps !== undefined
+      ? `$${fmpData.quote.eps.toFixed(2)}`
+      : isEtf
+        ? 'N/A'
+        : `$${(2 + (seed % 8)).toFixed(2)}`;
+
+  const marketCapFormatted = formatMarketCap(
+    fmpData?.quote?.marketCap ?? fmpData?.profile?.mktCap,
+    isEtf,
+  );
+  const fallbackMarketCap = isEtf
+    ? `$${(10 + (seed % 90)).toFixed(1)}B AUM`
+    : `$${(25 + (seed % 250)).toFixed(1)}B`;
+
+  const range = parse52WeekRange(fmpData?.profile?.range);
+  const week52Low =
+    fmpData?.quote?.yearLow ?? range.low ?? Number((basePrice * 0.72).toFixed(2));
+  const week52High =
+    fmpData?.quote?.yearHigh ?? range.high ?? Number((basePrice * 1.28).toFixed(2));
+
+  const upside = 12 + (seed % 20);
   const base12M = Number((basePrice * (1 + upside / 100)).toFixed(2));
   const cons12M = Number((basePrice * 0.92).toFixed(2));
   const opt12M = Number((basePrice * 1.32).toFixed(2));
@@ -465,14 +753,17 @@ export async function getAssetIntelligenceAction(symbol: string): Promise<AssetI
     symbol: upper,
     name,
     assetType: isEtf ? 'etf' : 'stock',
-    exchange: match?.exchange ?? 'NASDAQ',
+    exchange,
     currency: 'USD',
-    marketCap: isEtf ? `$${(10 + (seed % 90)).toFixed(1)}B AUM` : `$${(25 + (seed % 250)).toFixed(1)}B`,
-    peRatio: isEtf ? `${pe.toFixed(1)}x (Weighted)` : `${pe.toFixed(1)}x (Forward)`,
-    dividendYield: `${yieldPct}%`,
-    forwardEps: isEtf ? 'N/A' : `$${(2 + (seed % 8)).toFixed(2)}`,
-    week52Low: Number((basePrice * 0.72).toFixed(2)),
-    week52High: Number((basePrice * 1.28).toFixed(2)),
+    marketCap:
+      marketCapFormatted !== 'N/A' && marketCapFormatted !== 'N/A (ETF)'
+        ? marketCapFormatted
+        : fallbackMarketCap,
+    peRatio,
+    dividendYield: `${divYieldVal}%`,
+    forwardEps,
+    week52Low,
+    week52High,
     currentPrice: basePrice,
     projections: {
       currentPrice: basePrice,

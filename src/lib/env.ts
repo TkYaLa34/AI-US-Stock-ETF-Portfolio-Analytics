@@ -107,3 +107,15 @@ export function getServerSupabaseEnv(): ServerSupabaseEnv {
     serviceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY,
   };
 }
+
+/**
+ * Returns the optional Financial Modeling Prep (FMP) API key from process.env.
+ * Server-side only.
+ */
+export function getFmpApiKey(): string | undefined {
+  const key = process.env.FMP_API_KEY;
+  if (!key || key.trim() === '' || key.trim() === 'your-fmp-api-key-here') {
+    return undefined;
+  }
+  return key.trim();
+}
