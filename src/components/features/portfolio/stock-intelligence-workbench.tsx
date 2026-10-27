@@ -36,6 +36,7 @@ import {
 import { createAssetAction } from '@/server/actions/asset-actions';
 import { INITIAL_PORTFOLIO_ACTION_STATE } from '@/lib/portfolio/types';
 import type { PortfolioListItem } from '@/lib/portfolio/types';
+import { AiEarningsDigest } from './ai-earnings-digest';
 
 export interface StockIntelligenceWorkbenchProps {
   portfolios: readonly PortfolioListItem[];
@@ -470,6 +471,11 @@ export function StockIntelligenceWorkbench({
               </div>
             </div>
           </div>
+
+          {/* AI Earnings Digest & Executive Sentiment Gauge */}
+          {intelData.earningsDigest ? (
+            <AiEarningsDigest symbol={intelData.symbol} digest={intelData.earningsDigest} />
+          ) : null}
         </div>
       ) : null}
 
