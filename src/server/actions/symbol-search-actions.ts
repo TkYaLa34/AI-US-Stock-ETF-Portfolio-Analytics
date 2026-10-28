@@ -43,6 +43,28 @@ export interface EarningsDigestData {
   };
 }
 
+export interface InsiderTransaction {
+  reportingName: string;
+  typeOfOwner: string;
+  transactionType: 'Buy' | 'Sell';
+  shares: string;
+  price: string;
+  totalValue: string;
+  date: string;
+}
+
+export interface MoneyFlowData {
+  institutionalBuyPercent: number;
+  institutionalSellPercent: number;
+  netFlowStatus: 'Heavy Accumulation' | 'Moderate Accumulation' | 'Net Outflow' | 'Balanced Flow';
+  darkPoolVolumeAlert: {
+    hasUnusualVolume: boolean;
+    volumePercentAboveAvg: string;
+    alertLabel: string;
+  };
+  insiderTransactions: InsiderTransaction[];
+}
+
 export interface AssetIntelligenceData {
   symbol: string;
   name: string;
@@ -73,6 +95,7 @@ export interface AssetIntelligenceData {
     recommendedAllocationWeight: string;
   };
   earningsDigest?: EarningsDigestData;
+  moneyFlow?: MoneyFlowData;
 }
 
 const COMPREHENSIVE_US_MARKET_TICKERS: readonly MarketSymbolResult[] = [
@@ -286,6 +309,36 @@ const INTELLIGENCE_DATABASE: Record<string, AssetIntelligenceData> = {
         ],
       },
     },
+    moneyFlow: {
+      institutionalBuyPercent: 74,
+      institutionalSellPercent: 26,
+      netFlowStatus: 'Heavy Accumulation',
+      darkPoolVolumeAlert: {
+        hasUnusualVolume: true,
+        volumePercentAboveAvg: '+142% Above 30D Avg',
+        alertLabel: 'STABLE INSTITUTIONAL DIVIDEND ACCUMULATION',
+      },
+      insiderTransactions: [
+        {
+          reportingName: 'Quincey James R',
+          typeOfOwner: 'Chairman & CEO',
+          transactionType: 'Buy',
+          shares: '25,000',
+          price: '$67.80',
+          totalValue: '$1,695,000',
+          date: '2025-01-14',
+        },
+        {
+          reportingName: 'Murphy John',
+          typeOfOwner: 'President & CFO',
+          transactionType: 'Buy',
+          shares: '12,500',
+          price: '$68.10',
+          totalValue: '$851,250',
+          date: '2024-12-18',
+        },
+      ],
+    },
   },
 
   NVDA: {
@@ -347,6 +400,36 @@ const INTELLIGENCE_DATABASE: Record<string, AssetIntelligenceData> = {
           'ข้อจำกัดทางเทคโนโลยีและมาตรการส่งออกไปยังตลาดจีน',
         ],
       },
+    },
+    moneyFlow: {
+      institutionalBuyPercent: 81,
+      institutionalSellPercent: 19,
+      netFlowStatus: 'Heavy Accumulation',
+      darkPoolVolumeAlert: {
+        hasUnusualVolume: true,
+        volumePercentAboveAvg: '+288% Above 30D Avg',
+        alertLabel: 'UNUSUAL DARK POOL BLOCK ACCUMULATION DETECTED',
+      },
+      insiderTransactions: [
+        {
+          reportingName: 'Huang Jen Hsun',
+          typeOfOwner: 'President & CEO',
+          transactionType: 'Sell',
+          shares: '120,000',
+          price: '$126.40',
+          totalValue: '$15,168,000',
+          date: '2025-01-20',
+        },
+        {
+          reportingName: 'Kress Colette',
+          typeOfOwner: 'EVP & CFO',
+          transactionType: 'Buy',
+          shares: '15,000',
+          price: '$127.50',
+          totalValue: '$1,912,500',
+          date: '2025-01-08',
+        },
+      ],
     },
   },
 
@@ -854,6 +937,55 @@ export async function getAssetIntelligenceAction(symbol: string): Promise<AssetI
     },
   };
 
+  const instBuyPct = 55 + (seed % 35);
+  const instSellPct = 100 - instBuyPct;
+  const netFlowStatus: 'Heavy Accumulation' | 'Moderate Accumulation' | 'Net Outflow' | 'Balanced Flow' =
+    instBuyPct >= 75
+      ? 'Heavy Accumulation'
+      : instBuyPct >= 60
+        ? 'Moderate Accumulation'
+        : instBuyPct >= 45
+          ? 'Balanced Flow'
+          : 'Net Outflow';
+
+  const moneyFlow: MoneyFlowData = {
+    institutionalBuyPercent: instBuyPct,
+    institutionalSellPercent: instSellPct,
+    netFlowStatus,
+    darkPoolVolumeAlert: {
+      hasUnusualVolume: seed % 2 === 0,
+      volumePercentAboveAvg: `+${110 + (seed % 180)}% Above 30D Avg`,
+      alertLabel:
+        seed % 2 === 0
+          ? 'UNUSUAL DARK POOL BLOCK ACCUMULATION DETECTED'
+          : 'NORMAL INSTITUTIONAL TRADING VOLUME',
+    },
+    insiderTransactions: [
+      {
+        reportingName: 'Executive Officer',
+        typeOfOwner: 'Chief Executive Officer',
+        transactionType: seed % 3 === 0 ? 'Sell' : 'Buy',
+        shares: `${(10 + (seed % 40)).toLocaleString('en-US')},000`,
+        price: `$${basePrice.toFixed(2)}`,
+        totalValue: `$${((10 + (seed % 40)) * basePrice * 1000).toLocaleString('en-US', {
+          maximumFractionDigits: 0,
+        })}`,
+        date: '2025-01-15',
+      },
+      {
+        reportingName: 'Board Member',
+        typeOfOwner: 'Director',
+        transactionType: 'Buy',
+        shares: `${(5 + (seed % 15)).toLocaleString('en-US')},000`,
+        price: `$${(basePrice * 0.98).toFixed(2)}`,
+        totalValue: `$${((5 + (seed % 15)) * basePrice * 0.98 * 1000).toLocaleString('en-US', {
+          maximumFractionDigits: 0,
+        })}`,
+        date: '2025-01-08',
+      },
+    ],
+  };
+
   return {
     symbol: upper,
     name,
@@ -898,5 +1030,6 @@ export async function getAssetIntelligenceAction(symbol: string): Promise<AssetI
       recommendedAllocationWeight: '4.0% - 8.0% (Portfolio Allocation)',
     },
     earningsDigest,
+    moneyFlow,
   };
 }

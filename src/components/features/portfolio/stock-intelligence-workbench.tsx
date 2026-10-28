@@ -37,6 +37,7 @@ import { createAssetAction } from '@/server/actions/asset-actions';
 import { INITIAL_PORTFOLIO_ACTION_STATE } from '@/lib/portfolio/types';
 import type { PortfolioListItem } from '@/lib/portfolio/types';
 import { AiEarningsDigest } from './ai-earnings-digest';
+import { InstitutionalMoneyFlowTracker } from './institutional-money-flow-tracker';
 
 export interface StockIntelligenceWorkbenchProps {
   portfolios: readonly PortfolioListItem[];
@@ -471,6 +472,11 @@ export function StockIntelligenceWorkbench({
               </div>
             </div>
           </div>
+
+          {/* Institutional & Insider Money Flow Tracker */}
+          {intelData.moneyFlow ? (
+            <InstitutionalMoneyFlowTracker symbol={intelData.symbol} moneyFlow={intelData.moneyFlow} />
+          ) : null}
 
           {/* AI Earnings Digest & Executive Sentiment Gauge */}
           {intelData.earningsDigest ? (
