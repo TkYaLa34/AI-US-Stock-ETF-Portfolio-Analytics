@@ -28,6 +28,21 @@ export interface PriceScenarioProjection {
   currentPrice: number;
 }
 
+export interface EarningsDigestData {
+  sentimentScore: number;
+  sentimentLabel: 'Highly Bullish' | 'Bullish' | 'Neutral' | 'Cautious';
+  metrics: {
+    revenueBeatPercent: string;
+    epsSurprisePercent: string;
+    nextQuarterGuidance: string;
+    grossMarginTrend: string;
+  };
+  takeaways: {
+    bullishPoints: string[];
+    bearishPoints: string[];
+  };
+}
+
 export interface AssetIntelligenceData {
   symbol: string;
   name: string;
@@ -57,6 +72,7 @@ export interface AssetIntelligenceData {
     riskFactors: string[];
     recommendedAllocationWeight: string;
   };
+  earningsDigest?: EarningsDigestData;
 }
 
 const COMPREHENSIVE_US_MARKET_TICKERS: readonly MarketSymbolResult[] = [
@@ -250,6 +266,26 @@ const INTELLIGENCE_DATABASE: Record<string, AssetIntelligenceData> = {
       riskFactors: ['ความผันผวนของอัตราแลกเปลี่ยนสกุลเงินต่างประเทศ', 'แรงกดดันจากต้นทุนบรรจุภัณฑ์'],
       recommendedAllocationWeight: '5.0% - 10.0% (Defensive Dividend Core)',
     },
+    earningsDigest: {
+      sentimentScore: 82,
+      sentimentLabel: 'Bullish',
+      metrics: {
+        revenueBeatPercent: '+2.8% Beat ($11.8B vs $11.5B est.)',
+        epsSurprisePercent: '+6.1% Surprise ($0.77 vs $0.72 est.)',
+        nextQuarterGuidance: 'Upward organic revenue growth (+9%-10%)',
+        grossMarginTrend: '+120 bps YoY (60.8%)',
+      },
+      takeaways: {
+        bullishPoints: [
+          'อำนาจการปรับขึ้นราคาขาย (Pricing Power) โดดเด่นในตลาดพัฒนาแล้ว',
+          'ยอดขายเครื่องดื่มกลุ่ม Zero Sugar เติบโตต่อเนื่องเป็นตัวเลขสองหลัก',
+        ],
+        bearishPoints: [
+          'ผลกระทบเชิงลบชั่วคราวจากการแปลงสกุลเงินต่างประเทศในภูมิภาค LATAM',
+          'ต้นทุนค่าใช้จ่ายด้านการตลาดและการกระจายสินค้าที่ปรับตัวสูงขึ้น',
+        ],
+      },
+    },
   },
 
   NVDA: {
@@ -291,6 +327,26 @@ const INTELLIGENCE_DATABASE: Record<string, AssetIntelligenceData> = {
       ],
       riskFactors: ['มาตรการจำกัดการส่งออกชิปขั้นสูงไปยังจีน', 'ความเสี่ยงด้านความเข้มข้นของลูกค้าหลัก'],
       recommendedAllocationWeight: '8.0% - 12.0% (Overweight Core)',
+    },
+    earningsDigest: {
+      sentimentScore: 92,
+      sentimentLabel: 'Highly Bullish',
+      metrics: {
+        revenueBeatPercent: '+8.4% Beat ($30.0B vs $27.6B est.)',
+        epsSurprisePercent: '+14.2% Surprise ($0.68 vs $0.59 est.)',
+        nextQuarterGuidance: 'Strong outlook ($32.5B ± 2%)',
+        grossMarginTrend: '+350 bps YoY (75.4%)',
+      },
+      takeaways: {
+        bullishPoints: [
+          'ความต้องการชิป Blackwell และ Hopper AI อยู่ในระดับมากกว่ากำลังการผลิตตลอดปี',
+          'รายได้จากกลุ่ม Data Center พุ่งขึ้น +154% YoY สูงกว่าประมาณการของสถาบัน',
+        ],
+        bearishPoints: [
+          'ความเข้มข้นของลูกค้ารายใหญ่ (Top 4 Hyperscalers) คิดเป็นมากกว่า 45% ของรายได้',
+          'ข้อจำกัดทางเทคโนโลยีและมาตรการส่งออกไปยังตลาดจีน',
+        ],
+      },
     },
   },
 
@@ -773,6 +829,31 @@ export async function getAssetIntelligenceAction(symbol: string): Promise<AssetI
   const cons12M = Number((basePrice * 0.92).toFixed(2));
   const opt12M = Number((basePrice * 1.32).toFixed(2));
 
+  const sentimentScore = 72 + (seed % 23);
+  const sentimentLabel: 'Highly Bullish' | 'Bullish' | 'Neutral' | 'Cautious' =
+    sentimentScore >= 88 ? 'Highly Bullish' : sentimentScore >= 78 ? 'Bullish' : 'Neutral';
+
+  const earningsDigest: EarningsDigestData = {
+    sentimentScore,
+    sentimentLabel,
+    metrics: {
+      revenueBeatPercent: `+${(2 + (seed % 6)).toFixed(1)}% Beat`,
+      epsSurprisePercent: `+${(4 + (seed % 12)).toFixed(1)}% Surprise`,
+      nextQuarterGuidance: 'Positive Mid-Single Digit Growth',
+      grossMarginTrend: `+${80 + (seed % 150)} bps YoY`,
+    },
+    takeaways: {
+      bullishPoints: [
+        `การเติบโตอย่างต่อเนื่องของยอดขายในกลุ่มธุรกิจหลักของ ${upper}`,
+        'การขยายอัตรากำไรขั้นต้นจากประสิทธิภาพการดำเนินงานและวินัยทางการเงินที่ดีขึ้น',
+      ],
+      bearishPoints: [
+        'ความผันผวนของต้นทุนวัตถุดิบและสภาวะเศรษฐกิจมหภาคในระยะสั้น',
+        'แรงกดดันจากการแข่งขันในอุตสาหกรรมหลัก',
+      ],
+    },
+  };
+
   return {
     symbol: upper,
     name,
@@ -816,5 +897,6 @@ export async function getAssetIntelligenceAction(symbol: string): Promise<AssetI
       riskFactors: ['ความผันผวนสภาวะตลาดและทิศทางอัตราดอกเบี้ย'],
       recommendedAllocationWeight: '4.0% - 8.0% (Portfolio Allocation)',
     },
+    earningsDigest,
   };
 }
