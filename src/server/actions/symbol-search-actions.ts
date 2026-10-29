@@ -707,16 +707,20 @@ async function fetchFmpData(
 
     if (quoteRes) {
       const qText = await quoteRes.text();
-      console.log(`[FMP Realtime Quote API Payload] Symbol: ${symbol}, Status: ${quoteRes.status}`, qText.slice(0, 300));
       if (quoteRes.ok) {
         try {
           const qArr = JSON.parse(qText) as FmpQuoteData[];
           if (Array.isArray(qArr) && qArr.length > 0 && typeof qArr[0]?.price === 'number' && qArr[0].price > 0) {
             quote = qArr[0];
+            console.log(`[FMP Realtime Quote Success] Symbol: ${symbol}, Price: ${quote.price}`);
+          } else {
+            console.error(`[FMP Quote API Empty/Invalid Array] Ticker: ${symbol}, HTTP Status: ${quoteRes.status}, Body: ${qText}`);
           }
         } catch (err) {
-          console.error(`[FMP Quote API Parse Error] Symbol: ${symbol}`, err);
+          console.error(`[FMP Quote API Parse Error] Ticker: ${symbol}, Body: ${qText}`, err);
         }
+      } else {
+        console.error(`[FMP Quote API HTTP Error] Ticker: ${symbol}, HTTP Status: ${quoteRes.status}, Body: ${qText}`);
       }
     }
 
